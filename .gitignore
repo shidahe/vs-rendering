@@ -36,7 +36,9 @@
 # ORBSLAM
 build/
 Vocabulary/ORBvoc.txt
+KeyFrameTrajectory.txt
 # CLion
 .idea/
 # VScode
 */.vscode/
+

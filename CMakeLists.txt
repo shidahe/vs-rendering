@@ -39,8 +39,11 @@ find_package(Eigen3 3.1.0 REQUIRED)
 find_package(Pangolin REQUIRED)
 
 # Find CGAL
+set(CMAKE_BUILD_TYPE_BACKUP ${CMAKE_BUILD_TYPE})
+set(CMAKE_BUILD_TYPE "Release")
 find_package(CGAL REQUIRED COMPONENTS Core)
 include( ${CGAL_USE_FILE} )
+set(CMAKE_BUILD_TYPE ${CMAKE_BUILD_TYPE_BACKUP})
 # Find Boost
 find_package(Boost REQUIRED)
 include_directories(${Boost_INCLUDE_DIR})
