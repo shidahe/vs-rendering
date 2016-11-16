@@ -31,7 +31,12 @@ namespace ORB_SLAM2
 LocalMapping::LocalMapping(Map *pMap, const float bMonocular):
     mbMonocular(bMonocular), mbResetRequested(false), mbFinishRequested(false), mbFinished(true), mpMap(pMap),
     mbAbortBA(false), mbStopped(false), mbStopRequested(false), mbNotStop(false), mbAcceptKeyFrames(true)
-{
+{  
+    //CARV
+    m_algInterface.setAlgorithmRef(& m_objAlgorithm);
+    m_algInterface.setTranscriptRef(m_transcriptInterface.getTranscriptRef());
+    m_algInterface.rewind();
+    m_bFirstKeyFrame = true;
 }
 
 void LocalMapping::SetLoopCloser(LoopClosing* pLoopCloser)
@@ -85,19 +90,23 @@ void LocalMapping::Run()
             }
 
             mpLoopCloser->InsertKeyFrame(mpCurrentKeyFrame);
+
+            //CARV
+            //m_algInterface.runRemainder();
         }
-        else if(Stop())
+        else if (Stop())
         {
             // Safe area to stop
-            while(isStopped() && !CheckFinish())
+            while (isStopped() && !CheckFinish())
             {
                 usleep(3000);
             }
-            if(CheckFinish())
+            if (CheckFinish())
                 break;
         }
 
         ResetIfRequested();
+        // m_algInterface.runRemainder(); //CARV
 
         // Tracking will see that Local Mapping is busy
         SetAcceptKeyFrames(true);
@@ -106,6 +115,7 @@ void LocalMapping::Run()
             break;
 
         usleep(3000);
+        m_transcriptInterface.writeToFile("/home/theia/Developer/ORBSLAM2_modeler/sfmtranscript_orbslam.txt");
     }
 
     SetFinish();
@@ -165,6 +175,7 @@ void LocalMapping::ProcessNewKeyFrame()
 
     // Insert Keyframe in Map
     mpMap->AddKeyFrame(mpCurrentKeyFrame);
+
 }
 
 void LocalMapping::MapPointCulling()
@@ -185,20 +196,38 @@ void LocalMapping::MapPointCulling()
         MapPoint* pMP = *lit;
         if(pMP->isBad())
         {
+            // //CARV
+            // m_transcriptInterface.addPointDeletionEntry(pMP);
+            // m_algInterface.runRemainder();
+
             lit = mlpRecentAddedMapPoints.erase(lit);
         }
         else if(pMP->GetFoundRatio()<0.25f )
         {
+            // //CARV
+            // m_transcriptInterface.addPointDeletionEntry(pMP);
+            // m_algInterface.runRemainder();
+
             pMP->SetBadFlag();
             lit = mlpRecentAddedMapPoints.erase(lit);
         }
         else if(((int)nCurrentKFid-(int)pMP->mnFirstKFid)>=2 && pMP->Observations()<=cnThObs)
         {
+            //CARV
+            // m_transcriptInterface.addPointDeletionEntry(pMP);
+            // m_algInterface.runRemainder();
+
             pMP->SetBadFlag();
             lit = mlpRecentAddedMapPoints.erase(lit);
         }
         else if(((int)nCurrentKFid-(int)pMP->mnFirstKFid)>=3)
+        {
+            // //CARV
+            // m_transcriptInterface.addPointDeletionEntry(pMP);
+            // m_algInterface.runRemainder();
+            
             lit = mlpRecentAddedMapPoints.erase(lit);
+        }
         else
             lit++;
     }
@@ -449,6 +478,15 @@ void LocalMapping::CreateNewMapPoints()
             nnew++;
         }
     }
+
+    // CARV
+    if (m_bFirstKeyFrame){
+        m_transcriptInterface.addFirstKeyFrameInsertionEntry(mpCurrentKeyFrame); 
+        m_bFirstKeyFrame = false;
+    } else {
+        m_transcriptInterface.addKeyFrameInsertionEntry(mpCurrentKeyFrame); 
+    }
+    m_algInterface.runRemainder();
 }
 
 void LocalMapping::SearchInNeighbors()
@@ -728,6 +766,10 @@ void LocalMapping::ResetIfRequested()
         mlNewKeyFrames.clear();
         mlpRecentAddedMapPoints.clear();
         mbResetRequested=false;
+
+        //CARV
+        m_transcriptInterface.addResetEntry();
+        m_algInterface.runRemainder();
     }
 }
 
@@ -735,6 +777,10 @@ void LocalMapping::RequestFinish()
 {
     unique_lock<mutex> lock(mMutexFinish);
     mbFinishRequested = true;
+
+    //CARV
+    m_transcriptInterface.addResetEntry();
+    m_algInterface.runRemainder();
 }
 
 bool LocalMapping::CheckFinish()

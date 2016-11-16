@@ -9,8 +9,12 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
 
 MESSAGE("Build type: " ${CMAKE_BUILD_TYPE})
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -Wall  -O3 -march=native ")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -Wall  -O3 -march=native")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall   -O3 -march=native")
+
+# set carv needed flags
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D__STDC_CONSTANT_MACROS -DGL_GLEXT_PROTOTYPES -D_LINUX -D_REENTRANT -DCGAL_USE_F2C")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D__STDC_CONSTANT_MACROS -DGL_GLEXT_PROTOTYPES -D_LINUX -D_REENTRANT -DCGAL_USE_F2C")
 
 # Check C++11 or C++0x support
 include(CheckCXXCompilerFlag)
@@ -34,6 +38,24 @@ find_package(OpenCV 2.4.3 REQUIRED)
 find_package(Eigen3 3.1.0 REQUIRED)
 find_package(Pangolin REQUIRED)
 
+# Find CGAL
+find_package(CGAL REQUIRED COMPONENTS Core)
+include( ${CGAL_USE_FILE} )
+# Find Boost
+find_package(Boost REQUIRED)
+include_directories(${Boost_INCLUDE_DIR})
+link_directories(${Boost_LIBRARY_DIR})
+# BLAS and LAPACK
+#set(BLAS_DIR /path/to/blas)
+#find_package(BLAS REQUIRED)
+#include_directories(${BLAS_INCLUDE_DIR})
+#link_directories(${BLAS_LIBRARY_DIR})
+#set(LAPACK_DIR /path/to/lapack)
+find_package(LAPACK REQUIRED)
+#include_directories(${LAPACK_INCLUDE_DIR})
+link_directories(${LAPACK_LIBRARY_DIR})
+
+
 include_directories(
 ${PROJECT_SOURCE_DIR}
 ${PROJECT_SOURCE_DIR}/include
@@ -43,6 +65,7 @@ ${Pangolin_INCLUDE_DIRS}
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/lib)
 
+# added carv source file
 add_library(${PROJECT_NAME} SHARED
 src/System.cc
 src/Tracking.cc
@@ -63,14 +86,25 @@ src/KeyFrameDatabase.cc
 src/Sim3Solver.cc
 src/Initializer.cc
 src/Viewer.cc
+src/Modeler/FreespaceDelaunayAlgorithm.cc
+src/Modeler/GraphWrapper_Boost.cc
+src/Modeler/lovimath.cc
+src/Modeler/SFMTranscript.cpp
+src/Modeler/SFMTranscriptInterface_Delaunay.cpp
+src/Modeler/Matrix.cc
+src/Modeler/StringFunctions.cpp
+src/Modeler/Exception.cpp
+src/Modeler/SFMTranscriptInterface_ORBSLAM.cpp
 )
 
+# add lapack blas link
 target_link_libraries(${PROJECT_NAME}
 ${OpenCV_LIBS}
 ${EIGEN3_LIBS}
 ${Pangolin_LIBRARIES}
 ${PROJECT_SOURCE_DIR}/Thirdparty/DBoW2/lib/libDBoW2.so
 ${PROJECT_SOURCE_DIR}/Thirdparty/g2o/lib/libg2o.so
+lapack blas
 )
 
 # Build examples

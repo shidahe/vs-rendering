@@ -81,6 +81,9 @@ void KeyFrame::SetPose(const cv::Mat &Tcw_)
     Ow.copyTo(Twc.rowRange(0,3).col(3));
     cv::Mat center = (cv::Mat_<float>(4,1) << mHalfBaseline, 0 , 0, 1);
     Cw = Twc*center;
+
+    //cout << "KeyFrame Twc:" << endl << " " << Twc << endl << endl;
+    //cout << "KeyFrame Twc:" << endl << " " << Twc.at<float>(0,3) << ";" << Twc.at<float>(1,3) << ";" << Twc.at<float>(2,3) << endl << endl;
 }
 
 cv::Mat KeyFrame::GetPose()
