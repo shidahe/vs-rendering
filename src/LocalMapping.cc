@@ -115,7 +115,6 @@ void LocalMapping::Run()
             break;
 
         usleep(3000);
-        m_transcriptInterface.writeToFile("/home/theia/Developer/ORBSLAM2_modeler/sfmtranscript_orbslam.txt");
     }
 
     SetFinish();
@@ -795,6 +794,8 @@ void LocalMapping::SetFinish()
     mbFinished = true;    
     unique_lock<mutex> lock2(mMutexStop);
     mbStopped = true;
+    //CARV
+    m_transcriptInterface.writeToFile("/home/theia/Developer/ORBSLAM2_modeler/sfmtranscript_orbslam.txt");
 }
 
 bool LocalMapping::isFinished()
