@@ -29,8 +29,7 @@
 
 #include <mutex>
 
-#include "Modeler/SFMTranscriptInterface_ORBSLAM.h"
-#include "Modeler/SFMTranscriptInterface_Delaunay.h"
+#include "Modeler/Modeler.h"
 
 namespace ORB_SLAM2
 {
@@ -124,12 +123,9 @@ protected:
     bool mbAcceptKeyFrames;
     std::mutex mMutexAccept;
 
-    // CARV Logging stuff
-    SFMTranscriptInterface_ORBSLAM m_transcriptInterface; // An interface to a transcript / log of the map's work.
-    // Surface Inferer Stuff
-    dlovi::FreespaceDelaunayAlgorithm m_objAlgorithm;
-    SFMTranscriptInterface_Delaunay m_algInterface; // An encapsulation of the interface between the transcript and the surface inferring algorithm.
-    bool m_bFirstKeyFrame;
+    // CARV
+    Modeler* mpModeler;
+
 };
 
 } //namespace ORB_SLAM

@@ -36,6 +36,8 @@
 #include "ORBVocabulary.h"
 #include "Viewer.h"
 
+#include "Modeler/Modeler.h"
+
 namespace ORB_SLAM2
 {
 
@@ -123,6 +125,9 @@ private:
 
     // Map structure that stores the pointers to all KeyFrames and MapPoints.
     Map* mpMap;
+
+    //CARV: Modeler that take map logs to create and display the reconstructed model
+    Modeler* mpModeler;
 
     // Tracker. It receives a frame and computes the associated camera pose.
     // It also decides when to insert a new keyframe, create some new MapPoints and

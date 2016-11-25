@@ -27,51 +27,57 @@
 
 #include <mutex>
 
-namespace ORB_SLAM2
-{
+namespace ORB_SLAM2 {
 
-class MapPoint;
-class KeyFrame;
+    class MapPoint;
 
-class Map
-{
-public:
-    Map();
+    class KeyFrame;
 
-    void AddKeyFrame(KeyFrame* pKF);
-    void AddMapPoint(MapPoint* pMP);
-    void EraseMapPoint(MapPoint* pMP);
-    void EraseKeyFrame(KeyFrame* pKF);
-    void SetReferenceMapPoints(const std::vector<MapPoint*> &vpMPs);
+    class Map {
+    public:
+        Map();
 
-    std::vector<KeyFrame*> GetAllKeyFrames();
-    std::vector<MapPoint*> GetAllMapPoints();
-    std::vector<MapPoint*> GetReferenceMapPoints();
+        void AddKeyFrame(KeyFrame *pKF);
 
-    long unsigned int MapPointsInMap();
-    long unsigned  KeyFramesInMap();
+        void AddMapPoint(MapPoint *pMP);
 
-    long unsigned int GetMaxKFid();
+        void EraseMapPoint(MapPoint *pMP);
 
-    void clear();
+        void EraseKeyFrame(KeyFrame *pKF);
 
-    vector<KeyFrame*> mvpKeyFrameOrigins;
+        void SetReferenceMapPoints(const std::vector<MapPoint *> &vpMPs);
 
-    std::mutex mMutexMapUpdate;
+        std::vector<KeyFrame *> GetAllKeyFrames();
 
-    // This avoid that two points are created simultaneously in separate threads (id conflict)
-    std::mutex mMutexPointCreation;
+        std::vector<MapPoint *> GetAllMapPoints();
 
-protected:
-    std::set<MapPoint*> mspMapPoints;
-    std::set<KeyFrame*> mspKeyFrames;
+        std::vector<MapPoint *> GetReferenceMapPoints();
 
-    std::vector<MapPoint*> mvpReferenceMapPoints;
+        long unsigned int MapPointsInMap();
 
-    long unsigned int mnMaxKFid;
+        long unsigned KeyFramesInMap();
 
-    std::mutex mMutexMap;
-};
+        long unsigned int GetMaxKFid();
+
+        void clear();
+
+        vector<KeyFrame *> mvpKeyFrameOrigins;
+
+        std::mutex mMutexMapUpdate;
+
+        // This avoid that two points are created simultaneously in separate threads (id conflict)
+        std::mutex mMutexPointCreation;
+
+    protected:
+        std::set<MapPoint *> mspMapPoints;
+        std::set<KeyFrame *> mspKeyFrames;
+
+        std::vector<MapPoint *> mvpReferenceMapPoints;
+
+        long unsigned int mnMaxKFid;
+
+        std::mutex mMutexMap;
+    };
 
 } //namespace ORB_SLAM
 
