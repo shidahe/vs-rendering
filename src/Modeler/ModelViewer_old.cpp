@@ -2,7 +2,7 @@
 #include "KeyFrame.h"
 #include <iomanip>
 
-#include <cvd/gl_helpers.h>
+//#include <cvd/gl_helpers.h>
 
 /*#include "OpenGL.h"
 #include <cvd/image.h>
@@ -11,14 +11,14 @@
 
 // HACK TO REPLACE:
 //#include "nappear/glcommon.h"
-namespace nappear{
-GLenum printGLError_helper(const char * filename,int line);
-#define printGLError() printGLError_helper(__FILE__,__LINE__)
-};
+//namespace nappear{
+//GLenum printGLError_helper(const char * filename,int line);
+//#define printGLError() printGLError_helper(__FILE__,__LINE__)
+//};
 
-using namespace CVD;
+//using namespace CVD;
 using namespace std;
-using namespace nappear;
+//using namespace nappear;
 
 ModelViewer * ModelViewer::pMe = 0;
 void ModelViewer::drawMesh(int crap){

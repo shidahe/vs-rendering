@@ -15,14 +15,14 @@
 #ifndef __MODEL_VIEWER_H
 #define __MODEL_VIEWER_H
 
-#include "nappear/vdt.h"
-#include "nappear/fbo.h"
+//#include "nappear/vdt.h"
+//#include "nappear/fbo.h"
 
 //#include "SurfaceInferer.h"
 #include "MapMaker.h"
-#include <TooN/TooN.h>
-using namespace TooN;
-#include <TooN/se3.h>
+//#include <TooN/TooN.h>
+//using namespace TooN;
+//#include <TooN/se3.h>
 #include <sstream>
 #include "GLWindow2.h"
 

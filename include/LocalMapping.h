@@ -47,6 +47,9 @@ namespace ORB_SLAM2
 
         void SetTracker(Tracking* pTracker);
 
+        //CARV: set modeler pointer
+        void SetModeler(Modeler* pModeler);
+
         // Main function
         void Run();
 
