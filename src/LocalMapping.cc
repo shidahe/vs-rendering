@@ -476,14 +476,18 @@ namespace ORB_SLAM2
             }
         }
 
-        //CARV: add keyframe and the map points inside
-        if (mpModeler->mbFirstKeyFrame){
-            mpModeler->mTranscriptInterface.addFirstKeyFrameInsertionEntry(mpCurrentKeyFrame);
-            mpModeler->mbFirstKeyFrame = false;
-        } else {
-            mpModeler->mTranscriptInterface.addKeyFrameInsertionEntry(mpCurrentKeyFrame);
+        {
+            //CARV: add keyframe and the map points inside
+            unique_lock<mutex> lock(mpModeler->mMutexTranscript);
+            if (mpModeler->mbFirstKeyFrame) {
+                mpModeler->mTranscriptInterface.addFirstKeyFrameInsertionEntry(mpCurrentKeyFrame);
+                mpModeler->mbFirstKeyFrame = false;
+            } else {
+                mpModeler->mTranscriptInterface.addKeyFrameInsertionEntry(mpCurrentKeyFrame);
+            }
+            mpModeler->mbEmptyTranscript = false;
         }
-        mpModeler->mAlgInterface.runRemainder();
+
     }
 
     void LocalMapping::SearchInNeighbors()
@@ -765,8 +769,11 @@ namespace ORB_SLAM2
             mbResetRequested=false;
 
             //CARV
-            mpModeler->mTranscriptInterface.addResetEntry();
-            mpModeler->mAlgInterface.runRemainder();
+            {
+                unique_lock<mutex> lock2(mpModeler->mMutexTranscript);
+                mpModeler->mTranscriptInterface.addResetEntry();
+                mpModeler->mbEmptyTranscript = false;
+            }
         }
     }
 
@@ -774,10 +781,6 @@ namespace ORB_SLAM2
     {
         unique_lock<mutex> lock(mMutexFinish);
         mbFinishRequested = true;
-
-        //CARV
-        mpModeler->mTranscriptInterface.addResetEntry();
-        mpModeler->mAlgInterface.runRemainder();
     }
 
     bool LocalMapping::CheckFinish()

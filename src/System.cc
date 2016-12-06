@@ -27,11 +27,6 @@
 #include <iomanip>
 #include <time.h>
 
-bool has_suffix(const std::string &str, const std::string &suffix) {
-  std::size_t index = str.find(suffix, str.size() - suffix.size());
-  return (index != std::string::npos);
-}
-
 namespace ORB_SLAM2
 {
 
@@ -69,26 +64,27 @@ System::System(const string &strVocFile, const string &strSettingsFile, const eS
     clock_t tStart = clock();
     mpVocabulary = new ORBVocabulary();
     bool bVocLoad = false; // chose loading method based on file extension
-    if (has_suffix(strVocFile, ".txt"))
+    std::string suffixTxt = ".txt";
+    std::size_t suffixIndex = strVocFile.find(suffixTxt, strVocFile.size() - suffixTxt.size());
+    bool bTextFile = (suffixIndex != std::string::npos);
+    if (bTextFile)
 	  bVocLoad = mpVocabulary->loadFromTextFile(strVocFile);
 	else
 	  bVocLoad = mpVocabulary->loadFromBinaryFile(strVocFile);
+
     if(!bVocLoad)
     {
         cerr << "Wrong path to vocabulary. " << endl;
         cerr << "Failed to open at: " << strVocFile << endl;
         exit(-1);
     }
-    printf("Vocabulary loaded in %.2fs\n", (double)(clock() - tStart)/CLOCKS_PER_SEC);
+    printf("Vocabulary loaded in %.2fs!\n\n", (double)(clock() - tStart)/CLOCKS_PER_SEC);
 
     //Create KeyFrame Database
     mpKeyFrameDatabase = new KeyFrameDatabase(*mpVocabulary);
 
     //Create the Map
     mpMap = new Map();
-
-    //CARV: create the Modeler
-    mpModeler = new Modeler;
 
     //Create Drawers. These are used by the Viewer
     mpFrameDrawer = new FrameDrawer(mpMap);
@@ -106,6 +102,10 @@ System::System(const string &strVocFile, const string &strSettingsFile, const eS
     //Initialize the Loop Closing thread and launch
     mpLoopCloser = new LoopClosing(mpMap, mpKeyFrameDatabase, mpVocabulary, mSensor!=MONOCULAR);
     mptLoopClosing = new thread(&ORB_SLAM2::LoopClosing::Run, mpLoopCloser);
+
+    //CARV: Initialize the Modeler thread and launch
+    mpModeler = new Modeler();
+    mptModeler = new thread(&ORB_SLAM2::Modeler::Run, mpModeler);
 
     //Initialize the Viewer thread and launch
     mpViewer = new Viewer(this, mpFrameDrawer,mpMapDrawer,mpTracker,strSettingsFile);
