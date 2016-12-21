@@ -6,12 +6,13 @@
 
 namespace ORB_SLAM2 {
 
-    Modeler::Modeler() {
+    Modeler::Modeler():
+            mbResetRequested(false), mbFinishRequested(false), mbFinished(true),
+            mbFirstKeyFrame(true)
+    {
         mAlgInterface.setAlgorithmRef(&mObjAlgorithm);
         mAlgInterface.setTranscriptRef(mTranscriptInterface.getTranscriptRef());
         mAlgInterface.rewind();
-        mbFirstKeyFrame = true;
-        mbEmptyTranscript = true;
     }
 
     void Modeler::SetTracker(Tracking *pTracker)
@@ -36,8 +37,10 @@ namespace ORB_SLAM2 {
         while(1)
         {
             // Check if there are keyframes in the queue
-            if(CheckNewEntry())
+            if(CheckNewTranscriptEntry())
             {
+                PopKeyFrameIntoTranscript();
+
                 RunRemainder();
             }
 
@@ -46,23 +49,46 @@ namespace ORB_SLAM2 {
             if(CheckFinish())
                 break;
 
-            usleep(3000);
+            usleep(1000);
         }
 
         SetFinish();
     }
 
-    bool Modeler::CheckNewEntry()
+    bool Modeler::CheckNewTranscriptEntry()
     {
         unique_lock<mutex> lock(mMutexTranscript);
-        return(!mbEmptyTranscript);
+        return(!mlpTranscriptKeyFrameQueue.empty());
     }
 
     void Modeler::RunRemainder()
     {
-        unique_lock<mutex> lock(mMutexTranscript);
         mAlgInterface.runRemainder();
-        mbEmptyTranscript = true;
+    }
+
+    void Modeler::PushKeyFrame(KeyFrame* pKF)
+    {
+        unique_lock<mutex> lock(mMutexTranscript);
+        if(pKF->mnId!=0)
+            mlpTranscriptKeyFrameQueue.push_back(pKF);
+    }
+
+    void Modeler::PopKeyFrameIntoTranscript()
+    {
+        unique_lock<mutex> lock(mMutexTranscript);
+        KeyFrame* pKF = mlpTranscriptKeyFrameQueue.front();
+        mlpTranscriptKeyFrameQueue.pop_front();
+        // Avoid that a keyframe can be erased while it is being process by this thread
+        pKF->SetNotErase();
+
+        if (mbFirstKeyFrame) {
+            mTranscriptInterface.addFirstKeyFrameInsertionEntry(pKF);
+            mbFirstKeyFrame = false;
+        } else {
+            mTranscriptInterface.addKeyFrameInsertionEntry(pKF);
+        }
+
+        pKF->SetErase();
     }
 
     void Modeler::RequestReset()
@@ -79,7 +105,7 @@ namespace ORB_SLAM2 {
                 if(!mbResetRequested)
                     break;
             }
-            usleep(3000);
+            usleep(1000);
         }
     }
 
@@ -88,8 +114,18 @@ namespace ORB_SLAM2 {
         unique_lock<mutex> lock(mMutexReset);
         if(mbResetRequested)
         {
+            {
+                unique_lock<mutex> lock2(mMutexTranscript);
+                mlpTranscriptKeyFrameQueue.clear();
+            }
+//            mTranscriptInterface.addResetEntry();
+//            RunRemainder();
+            mAlgInterface.rewind();
+            mbFirstKeyFrame = true;
+
             mbResetRequested=false;
         }
+
     }
 
     void Modeler::RequestFinish()
@@ -108,6 +144,8 @@ namespace ORB_SLAM2 {
     {
         unique_lock<mutex> lock(mMutexFinish);
         mbFinished = true;
+        //CARV
+        mTranscriptInterface.writeToFile("sfmtranscript_orbslam.txt");
     }
 
     bool Modeler::isFinished()

@@ -73,18 +73,18 @@ namespace ORB_SLAM2
         pangolin::Var<bool> menuReset("menu.Reset",false,false);
 
         // Define Camera Render Object (for view / scene browsing)
-        pangolin::OpenGlRenderState s_cam(
+        pangolin::OpenGlRenderState s_map(
                 pangolin::ProjectionMatrix(1024,768,mViewpointF,mViewpointF,512,389,0.1,1000),
                 pangolin::ModelViewLookAt(mViewpointX,mViewpointY,mViewpointZ, 0,0,0,0.0,-1.0, 0.0)
         );
 
         // Add named OpenGL viewport to window and provide 3D Handler
-        pangolin::View& d_cam = pangolin::CreateDisplay()
+        pangolin::View& d_map = pangolin::CreateDisplay()
                 .SetBounds(0.0, 1.0, pangolin::Attach::Pix(175), 1.0, -1024.0f/768.0f)
-                .SetHandler(new pangolin::Handler3D(s_cam));
+                .SetHandler(new pangolin::Handler3D(s_map));
 
-        pangolin::OpenGlMatrix Twc;
-        Twc.SetIdentity();
+        pangolin::OpenGlMatrix MapTwc;
+        MapTwc.SetIdentity();
 
         cv::namedWindow("ORB-SLAM2: Current Frame");
 
@@ -95,16 +95,16 @@ namespace ORB_SLAM2
         {
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-            mpMapDrawer->GetCurrentOpenGLCameraMatrix(Twc);
+            mpMapDrawer->GetCurrentOpenGLCameraMatrix(MapTwc);
 
             if(menuFollowCamera && bFollow)
             {
-                s_cam.Follow(Twc);
+                s_map.Follow(MapTwc);
             }
             else if(menuFollowCamera && !bFollow)
             {
-                s_cam.SetModelViewMatrix(pangolin::ModelViewLookAt(mViewpointX,mViewpointY,mViewpointZ, 0,0,0,0.0,-1.0, 0.0));
-                s_cam.Follow(Twc);
+                s_map.SetModelViewMatrix(pangolin::ModelViewLookAt(mViewpointX,mViewpointY,mViewpointZ, 0,0,0,0.0,-1.0, 0.0));
+                s_map.Follow(MapTwc);
                 bFollow = true;
             }
             else if(!menuFollowCamera && bFollow)
@@ -123,9 +123,9 @@ namespace ORB_SLAM2
                 bLocalizationMode = false;
             }
 
-            d_cam.Activate(s_cam);
+            d_map.Activate(s_map);
             glClearColor(1.0f,1.0f,1.0f,1.0f);
-            mpMapDrawer->DrawCurrentCamera(Twc);
+            mpMapDrawer->DrawCurrentCamera(MapTwc);
             if(menuShowKeyFrames || menuShowGraph)
                 mpMapDrawer->DrawKeyFrames(menuShowKeyFrames,menuShowGraph);
             if(menuShowPoints)

@@ -5,6 +5,7 @@
 #include "LoopClosing.h"
 #include "LocalMapping.h"
 #include "Tracking.h"
+#include "KeyFrame.h"
 
 #include <mutex>
 
@@ -16,6 +17,7 @@ namespace ORB_SLAM2 {
     class Tracking;
     class LoopClosing;
     class LocalMapping;
+    class KeyFrame;
 
     class Modeler {
     public:
@@ -30,16 +32,11 @@ namespace ORB_SLAM2 {
         // Main function
         void Run();
 
-        bool CheckNewEntry();
+        bool CheckNewTranscriptEntry();
         void RunRemainder();
 
         // Thread Synch
-        void RequestStop();
         void RequestReset();
-        bool Stop();
-        void Release();
-        bool isStopped();
-        bool stopRequested();
         void RequestFinish();
         bool isFinished();
 
@@ -55,11 +52,16 @@ namespace ORB_SLAM2 {
         std::mutex mMutexFinish;
 
         Tracking* mpTracker;
-        LocalMapping *mpLocalMapper;
+        LocalMapping* mpLocalMapper;
         LoopClosing* mpLoopCloser;
 
         // This avoid that two transcript entries are created simultaneously in separate threads
         std::mutex mMutexTranscript;
+
+        std::list<KeyFrame*> mlpTranscriptKeyFrameQueue;
+
+        void PushKeyFrame(KeyFrame*);
+        void PopKeyFrameIntoTranscript();
 
         //CARV interface
         SFMTranscriptInterface_ORBSLAM mTranscriptInterface; // An interface to a transcript / log of the map's work.
@@ -67,7 +69,6 @@ namespace ORB_SLAM2 {
         dlovi::FreespaceDelaunayAlgorithm mObjAlgorithm;
         SFMTranscriptInterface_Delaunay mAlgInterface; // An encapsulation of the interface between the transcript and the surface inferring algorithm.
         bool mbFirstKeyFrame;
-        bool mbEmptyTranscript;
 
     };
 }

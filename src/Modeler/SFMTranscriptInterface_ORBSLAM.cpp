@@ -219,9 +219,8 @@ void SFMTranscriptInterface_ORBSLAM::addKeyFrameInsertionEntry(KeyFrame *k){
                 // Append this point's vis list.  (Point initialized from epipolar search: > 1 KF)
                 std::map<KeyFrame*, size_t> mObservations = point->GetObservations();
                 for(std::map<KeyFrame *,size_t>::iterator it2 = mObservations.begin(); it2 != mObservations.end(); it2++){
-                    if(m_mKeyFrame_Index.count(it2->first) == 0)
-                        throw dlovi::Exception("bibidi");
-                    ssTmp << ", " << m_mKeyFrame_Index[it2->first];
+                    if(m_mKeyFrame_Index.count(it2->first) != 0)
+                        ssTmp << ", " << m_mKeyFrame_Index[it2->first];
                 }
                 m_SFMTranscript.addLine(ssTmp.str()); ssTmp.str("");
 

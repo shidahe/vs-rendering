@@ -36,7 +36,9 @@
 #include "ORBVocabulary.h"
 #include "Viewer.h"
 
+//CARV: modeler classes
 #include "Modeler/Modeler.h"
+#include "Modeler/ModelDrawer.h"
 
 namespace ORB_SLAM2
 {
@@ -50,6 +52,7 @@ namespace ORB_SLAM2
 
     //CARV: Modeler class
     class Modeler;
+    class ModelDrawer;
 
     class System
     {
@@ -143,6 +146,7 @@ namespace ORB_SLAM2
 
         //CARV: Modeler that take map logs to create and display the reconstructed model
         Modeler* mpModeler;
+        ModelDrawer* mpModelDrawer;
 
         // The viewer draws the map and the current camera pose. It uses Pangolin.
         Viewer* mpViewer;

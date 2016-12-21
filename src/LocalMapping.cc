@@ -90,6 +90,9 @@ namespace ORB_SLAM2
                     KeyFrameCulling();
                 }
 
+                //CARV: add keyframe to transcript queue
+                mpModeler->PushKeyFrame(mpCurrentKeyFrame);
+
                 mpLoopCloser->InsertKeyFrame(mpCurrentKeyFrame);
 
             }
@@ -475,19 +478,6 @@ namespace ORB_SLAM2
                 nnew++;
             }
         }
-
-        {
-            //CARV: add keyframe and the map points inside
-            unique_lock<mutex> lock(mpModeler->mMutexTranscript);
-            if (mpModeler->mbFirstKeyFrame) {
-                mpModeler->mTranscriptInterface.addFirstKeyFrameInsertionEntry(mpCurrentKeyFrame);
-                mpModeler->mbFirstKeyFrame = false;
-            } else {
-                mpModeler->mTranscriptInterface.addKeyFrameInsertionEntry(mpCurrentKeyFrame);
-            }
-            mpModeler->mbEmptyTranscript = false;
-        }
-
     }
 
     void LocalMapping::SearchInNeighbors()
@@ -767,13 +757,6 @@ namespace ORB_SLAM2
             mlNewKeyFrames.clear();
             mlpRecentAddedMapPoints.clear();
             mbResetRequested=false;
-
-            //CARV
-            {
-                unique_lock<mutex> lock2(mpModeler->mMutexTranscript);
-                mpModeler->mTranscriptInterface.addResetEntry();
-                mpModeler->mbEmptyTranscript = false;
-            }
         }
     }
 
@@ -795,8 +778,6 @@ namespace ORB_SLAM2
         mbFinished = true;
         unique_lock<mutex> lock2(mMutexStop);
         mbStopped = true;
-        //CARV
-        mpModeler->mTranscriptInterface.writeToFile("sfmtranscript_orbslam.txt");
     }
 
     bool LocalMapping::isFinished()
