@@ -39,7 +39,7 @@ namespace ORB_SLAM2 {
 
         void AddKeyFrame(KeyFrame *pKF);
 
-        void AddMapPoint(MapPoint *pMP);
+        void AddMapPoint(MapPoint* pMP);
 
         void EraseMapPoint(MapPoint *pMP);
 
@@ -75,6 +75,9 @@ namespace ORB_SLAM2 {
         std::vector<MapPoint *> mvpReferenceMapPoints;
 
         long unsigned int mnMaxKFid;
+
+        // Index related to a big change in the map (loop closure, global BA)
+        int mnBigChangeIdx;
 
         std::mutex mMutexMap;
     };
