@@ -44,10 +44,10 @@ namespace ORB_SLAM2
 {
 
     Tracking::Tracking(System *pSys, ORBVocabulary* pVoc, FrameDrawer *pFrameDrawer, MapDrawer *pMapDrawer,
-                       ModelDrawer *pModelDrawer, Map *pMap, KeyFrameDatabase* pKFDB, const string &strSettingPath, const int sensor):
+                       Map *pMap, KeyFrameDatabase* pKFDB, const string &strSettingPath, const int sensor):
             mState(NO_IMAGES_YET), mSensor(sensor), mbOnlyTracking(false), mbVO(false), mpORBVocabulary(pVoc),
             mpKeyFrameDB(pKFDB), mpInitializer(static_cast<Initializer*>(NULL)), mpSystem(pSys),
-            mpFrameDrawer(pFrameDrawer), mpMapDrawer(pMapDrawer), mpModelDrawer(pModelDrawer), mpMap(pMap), mnLastRelocFrameId(0)
+            mpFrameDrawer(pFrameDrawer), mpMapDrawer(pMapDrawer), mpMap(pMap), mnLastRelocFrameId(0)
     {
         // Load camera parameters from settings file
 
@@ -267,7 +267,7 @@ namespace ORB_SLAM2
             mCurrentFrame = Frame(mImGray,timestamp,mpORBextractorLeft,mpORBVocabulary,mK,mDistCoef,mbf,mThDepth);
 
         //CARV: aquire rgb image and frameid
-        mpModelDrawer->AddFrame(mCurrentFrame.mnId, im);
+        mpModeler->AddFrame(mCurrentFrame.mnId, im);
 
         Track();
 

@@ -6,9 +6,9 @@
 
 namespace ORB_SLAM2 {
 
-    Modeler::Modeler():
+    Modeler::Modeler(ModelDrawer* pModelDrawer):
             mbResetRequested(false), mbFinishRequested(false), mbFinished(true),
-            mbFirstKeyFrame(true)
+            mpModelDrawer(pModelDrawer), mbFirstKeyFrame(true), mnMaxTextureQueueSize(4), mnMaxFrameQueueSize(1000)
     {
         mAlgInterface.setAlgorithmRef(&mObjAlgorithm);
         mAlgInterface.setTranscriptRef(mTranscriptInterface.getTranscriptRef());
@@ -42,6 +42,8 @@ namespace ORB_SLAM2 {
                 PopKeyFrameIntoTranscript();
 
                 RunRemainder();
+
+                UpdateModelDrawer();
             }
 
             ResetIfRequested();
@@ -53,6 +55,18 @@ namespace ORB_SLAM2 {
         }
 
         SetFinish();
+
+        //CARV
+        unique_lock<mutex> lock2(mMutexTranscript);
+        mTranscriptInterface.writeToFile("sfmtranscript_orbslam.txt");
+    }
+
+    void Modeler::UpdateModelDrawer(){
+            if(mpModelDrawer->UpdateRequested() && ! mpModelDrawer->UpdateDone()){
+                std::pair<std::vector<dlovi::Matrix>, std::list<dlovi::Matrix> > objModel = mAlgInterface.getCurrentModel();
+                mpModelDrawer->SetUpdatedModel(objModel.first, objModel.second);
+                mpModelDrawer->MarkUpdateDone();
+            }
     }
 
     bool Modeler::CheckNewTranscriptEntry()
@@ -87,6 +101,7 @@ namespace ORB_SLAM2 {
         } else {
             mTranscriptInterface.addKeyFrameInsertionEntry(pKF);
         }
+        AddTexture(pKF);
 
         pKF->SetErase();
     }
@@ -121,6 +136,8 @@ namespace ORB_SLAM2 {
 //            mTranscriptInterface.addResetEntry();
 //            RunRemainder();
             mAlgInterface.rewind();
+            mmFrameQueue.clear();
+            mdTextureQueue.clear();
             mbFirstKeyFrame = true;
 
             mbResetRequested=false;
@@ -144,14 +161,36 @@ namespace ORB_SLAM2 {
     {
         unique_lock<mutex> lock(mMutexFinish);
         mbFinished = true;
-        //CARV
-        mTranscriptInterface.writeToFile("sfmtranscript_orbslam.txt");
     }
 
     bool Modeler::isFinished()
     {
         unique_lock<mutex> lock(mMutexFinish);
         return mbFinished;
+    }
+
+    void Modeler::AddTexture(KeyFrame* pKF)
+    {
+        unique_lock<mutex> lock(mMutexTexture);
+        const long unsigned int frameID = pKF->mnFrameId;
+        if (mdTextureQueue.size() >= mnMaxTextureQueueSize) {
+            mdTextureQueue.pop_front();
+        }
+        mdTextureQueue.push_back(frameID);
+
+    }
+
+    void Modeler::AddFrame(const long unsigned int &frameID, const cv::Mat &im)
+    {
+        unique_lock<mutex> lock(mMutexFrame);
+        if (mmFrameQueue.size() >= mnMaxFrameQueueSize) {
+            mmFrameQueue.erase(mmFrameQueue.begin());
+        }
+        if (mmFrameQueue.count(frameID) > 0){
+            std::cerr << "ERROR: trying to add an existing frame" << std::endl;
+            return;
+        }
+        mmFrameQueue.insert(make_pair(frameID,im.clone()));
     }
 
 }

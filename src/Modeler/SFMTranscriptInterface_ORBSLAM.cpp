@@ -139,6 +139,7 @@ void SFMTranscriptInterface_ORBSLAM::addFirstKeyFrameInsertionEntry(KeyFrame *k)
 
         // // TODO: Instead of inverting the whole transform, we should be able to just use the negative translation.
         cv::Mat se3WfromC = k->GetPose();
+        se3WfromC = se3WfromC.inv();
         matNewCam(0) = se3WfromC.at<float>(0,3);
         matNewCam(1) = se3WfromC.at<float>(1,3);
         matNewCam(2) = se3WfromC.at<float>(2,3);
@@ -160,6 +161,10 @@ void SFMTranscriptInterface_ORBSLAM::addFirstKeyFrameInsertionEntry(KeyFrame *k)
                 matNewPoint(0) = mWorldPos.at<float>(0);
                 matNewPoint(1) = mWorldPos.at<float>(1);
                 matNewPoint(2) = mWorldPos.at<float>(2);
+
+                if (point->isBad())
+                    continue;
+
                 ssTmp << "new point: [" << matNewPoint(0) << "; " << matNewPoint(1) << "; " << matNewPoint(2) << "]";
                 // Append this point's vis list with special handling.  (Point initialized from epipolar search: > 1 KF, but only 1 KF in our internal structures.)
                 ssTmp << ", 0"; // KF 0 observed it.
@@ -193,6 +198,7 @@ void SFMTranscriptInterface_ORBSLAM::addKeyFrameInsertionEntry(KeyFrame *k){
 
         // TODO: Instead of inverting the whole transform, we should be able to just use the negative translation.
         cv::Mat se3WfromC = k->GetPose();
+        se3WfromC = se3WfromC.inv();
         matNewCam(0) = se3WfromC.at<float>(0,3);
         matNewCam(1) = se3WfromC.at<float>(1,3);
         matNewCam(2) = se3WfromC.at<float>(2,3);
@@ -210,23 +216,43 @@ void SFMTranscriptInterface_ORBSLAM::addKeyFrameInsertionEntry(KeyFrame *k){
             MapPoint * point = *it;
 
             if(m_mMapPoint_Index.count(point) == 0){
-                // It's a new point:
-                cv::Mat mWorldPos = point->GetWorldPos();
-                matNewPoint(0) = mWorldPos.at<float>(0);
-                matNewPoint(1) = mWorldPos.at<float>(0);
-                matNewPoint(2) = mWorldPos.at<float>(0);
-                ssTmp << "new point: [" << matNewPoint(0) << "; " << matNewPoint(1) << "; " << matNewPoint(2) << "]";
-                // Append this point's vis list.  (Point initialized from epipolar search: > 1 KF)
-                std::map<KeyFrame*, size_t> mObservations = point->GetObservations();
-                for(std::map<KeyFrame *,size_t>::iterator it2 = mObservations.begin(); it2 != mObservations.end(); it2++){
-                    if(m_mKeyFrame_Index.count(it2->first) != 0)
-                        ssTmp << ", " << m_mKeyFrame_Index[it2->first];
-                }
-                m_SFMTranscript.addLine(ssTmp.str()); ssTmp.str("");
 
-                // Add a record of the new point to internal map.
-                nPointIndex = m_mMapPoint_Index.size();
-                m_mMapPoint_Index[point] = nPointIndex;
+                // check if it has valid observation first
+                std::map<KeyFrame*, size_t> mObservations = point->GetObservations();
+                bool hasObservation = false;
+                for(std::map<KeyFrame *,size_t>::iterator it2 = mObservations.begin(); it2 != mObservations.end(); it2++){
+                    if(m_mKeyFrame_Index.count(it2->first) != 0) {
+                        hasObservation = true;
+                        break;
+                    }
+                }
+
+                if (hasObservation) {
+                    // It's a new point:
+                    cv::Mat mWorldPos = point->GetWorldPos();
+                    matNewPoint(0) = mWorldPos.at<float>(0);
+                    matNewPoint(1) = mWorldPos.at<float>(1);
+                    matNewPoint(2) = mWorldPos.at<float>(2);
+
+                    if (point->isBad())
+                        continue;
+
+                    ssTmp << "new point: [" << matNewPoint(0) << "; " << matNewPoint(1) << "; " << matNewPoint(2)
+                          << "]";
+                    // Append this point's vis list.  (Point initialized from epipolar search: > 1 KF)
+                    for (std::map<KeyFrame *, size_t>::iterator it2 = mObservations.begin();
+                         it2 != mObservations.end(); it2++) {
+                        if (m_mKeyFrame_Index.count(it2->first) != 0) {
+                            ssTmp << ", " << m_mKeyFrame_Index[it2->first];
+                        }
+                    }
+
+                    m_SFMTranscript.addLine(ssTmp.str()); ssTmp.str("");
+
+                    // Add a record of the new point to internal map.
+                    nPointIndex = m_mMapPoint_Index.size();
+                    m_mMapPoint_Index[point] = nPointIndex;
+                }
             }
             else{
                 // It's not a new point:

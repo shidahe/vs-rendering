@@ -27,6 +27,9 @@
 #include "Tracking.h"
 #include "System.h"
 
+// carv include
+#include "Modeler/ModelDrawer.h"
+
 #include <mutex>
 
 namespace ORB_SLAM2
@@ -37,10 +40,15 @@ namespace ORB_SLAM2
     class MapDrawer;
     class System;
 
+    // carv class declaration
+    class ModelDrawer;
+
     class Viewer
     {
     public:
-        Viewer(System* pSystem, FrameDrawer* pFrameDrawer, MapDrawer* pMapDrawer, Tracking *pTracking, const string &strSettingPath);
+        // carv initialize with modeldrawer
+        Viewer(System* pSystem, FrameDrawer* pFrameDrawer, MapDrawer* pMapDrawer, ModelDrawer* pModelDrawer,
+               Tracking *pTracking, const string &strSettingPath);
 
         // Main thread function. Draw points, keyframes, the current camera pose and the last processed
         // frame. Drawing is refreshed according to the camera fps. We use Pangolin.
@@ -63,6 +71,10 @@ namespace ORB_SLAM2
         System* mpSystem;
         FrameDrawer* mpFrameDrawer;
         MapDrawer* mpMapDrawer;
+
+        // carv modeldrawer pointer
+        ModelDrawer* mpModelDrawer;
+
         Tracking* mpTracker;
 
         // 1/fps in ms

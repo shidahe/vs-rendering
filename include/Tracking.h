@@ -63,8 +63,7 @@ namespace ORB_SLAM2
 
     public:
         //CARV: add modeldrawer as a argument of constructor
-        Tracking(System* pSys, ORBVocabulary* pVoc, FrameDrawer* pFrameDrawer, MapDrawer* pMapDrawer,
-                 ModelDrawer* pModelerDrawer, Map* pMap,
+        Tracking(System* pSys, ORBVocabulary* pVoc, FrameDrawer* pFrameDrawer, MapDrawer* pMapDrawer, Map* pMap,
                  KeyFrameDatabase* pKFDB, const string &strSettingPath, const int sensor);
 
         // Preprocess the input and call Track(). Extract features and performs stereo matching.
@@ -193,9 +192,6 @@ namespace ORB_SLAM2
         Viewer* mpViewer;
         FrameDrawer* mpFrameDrawer;
         MapDrawer* mpMapDrawer;
-
-        //CARV: ModelDrawer
-        ModelDrawer* mpModelDrawer;
 
         //Map
         Map* mpMap;

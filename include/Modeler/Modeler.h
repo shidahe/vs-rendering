@@ -11,6 +11,7 @@
 
 #include "Modeler/SFMTranscriptInterface_ORBSLAM.h"
 #include "Modeler/SFMTranscriptInterface_Delaunay.h"
+#include "Modeler/ModelDrawer.h"
 
 namespace ORB_SLAM2 {
 
@@ -18,10 +19,11 @@ namespace ORB_SLAM2 {
     class LoopClosing;
     class LocalMapping;
     class KeyFrame;
+    class ModelDrawer;
 
     class Modeler {
     public:
-        Modeler();
+        Modeler(ModelDrawer* pModelDrawer);
 
         void SetLoopCloser(LoopClosing* pLoopCloser);
 
@@ -32,6 +34,7 @@ namespace ORB_SLAM2 {
         // Main function
         void Run();
 
+        void UpdateModelDrawer();
         bool CheckNewTranscriptEntry();
         void RunRemainder();
 
@@ -39,6 +42,10 @@ namespace ORB_SLAM2 {
         void RequestReset();
         void RequestFinish();
         bool isFinished();
+
+
+        void AddTexture(KeyFrame* pKF);
+        void AddFrame(const long unsigned int &frameID, const cv::Mat &im);
 
     public:
         void ResetIfRequested();
@@ -55,6 +62,8 @@ namespace ORB_SLAM2 {
         LocalMapping* mpLocalMapper;
         LoopClosing* mpLoopCloser;
 
+        ModelDrawer* mpModelDrawer;
+
         // This avoid that two transcript entries are created simultaneously in separate threads
         std::mutex mMutexTranscript;
 
@@ -69,6 +78,17 @@ namespace ORB_SLAM2 {
         dlovi::FreespaceDelaunayAlgorithm mObjAlgorithm;
         SFMTranscriptInterface_Delaunay mAlgInterface; // An encapsulation of the interface between the transcript and the surface inferring algorithm.
         bool mbFirstKeyFrame;
+
+
+        //queue for the keyframes used to texture the model, keyframe mnFrameId
+        std::deque<long unsigned int> mdTextureQueue;
+        size_t mnMaxTextureQueueSize;
+        std::mutex mMutexTexture;
+
+        //queue for the frames recieved, pair<mnID,image>
+        std::map<long unsigned int, cv::Mat> mmFrameQueue;
+        size_t mnMaxFrameQueueSize;
+        std::mutex mMutexFrame;
 
     };
 }

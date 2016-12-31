@@ -12,13 +12,22 @@
 namespace ORB_SLAM2
 {
 
-
-    ModelDrawer::ModelDrawer():mnMaxTextureQueueSize(4), mnMaxFrameQueueSize(100)
+    ModelDrawer::ModelDrawer():mbModelUpdateRequested(false), mbModelUpdateDone(true)
     {
     }
 
-    void ModelDrawer::DrawModel()
+    void ModelDrawer::DrawModel(float light_x, float light_y , float light_z)
     {
+        // select 4 KFs
+//        size_t nLastKF = mdTextureQueue.size() - 1;
+//        std::vector<cv::Mat> imFrame;
+//        // 4 most recent KFs
+//        for (int i = 0; i < 4; i++){
+//            long unsigned int frameid = mdTextureQueue[std::max(0,nLastKF-i)];
+//            imFrame.push_back(mmFrameQueue[frameid]);
+//        }
+
+
 //        glEnable(GL_TEXTURE_2D);
 //        static unsigned int frameTex[4] = {0, 0, 0, 0};
 //        if(!frameTex[0])
@@ -37,31 +46,119 @@ namespace ORB_SLAM2
 //                         imFrame[i].data());
 //        }
 
+        UpdateModel();
+
+//        std::ofstream pointsOutput("drawingPoints.txt");
+
+//        glEnable(GL_POINT_SMOOTH);
+//        glEnable(GL_LINE_SMOOTH);
+
+//        GLfloat light_position[] = { light_x, light_y, light_z, 0.0 };
+        GLfloat light_position[] = { 10, 10, 10, 0 };
+
+        glShadeModel(GL_FLAT);
+
+        GLfloat material_diffuse[] = { 0, 0, 1, 1 };
+        GLfloat material_specular[] = { 1, 1, 1, 1 };
+        GLfloat material_shininess[] = { 100 };
+        glMaterialfv(GL_FRONT, GL_DIFFUSE, material_diffuse);
+        glMaterialfv(GL_FRONT, GL_SPECULAR, material_specular);
+        glMaterialfv(GL_FRONT, GL_SHININESS, material_shininess);
+
+        glLightfv(GL_LIGHT0, GL_POSITION, light_position);
+
+        glEnable(GL_LIGHTING);
+        glEnable(GL_LIGHT0);
+
+        glBegin(GL_TRIANGLES);
+//        glPointSize(3);
+//        glBegin(GL_POINTS);
+//        glColor3f(0.5,0.5,0.5);
+
+//        for(size_t i = 0; i < GetPoints().size(); i++) {
+//            glVertex3d(GetPoints()[i](0), GetPoints()[i](1), GetPoints()[i](2));
+//            pointsOutput << GetPoints()[i](0) << " " << GetPoints()[i](1) << " " << GetPoints()[i](2) << endl;
+//        }
+//        glEnd();
+//
+//        pointsOutput.close();
+
+        for(list<dlovi::Matrix>::const_iterator it = GetTris().begin(); it != GetTris().end(); it++){
+
+            dlovi::Matrix point0 = GetPoints()[(*it)(0)];
+            dlovi::Matrix point1 = GetPoints()[(*it)(1)];
+            dlovi::Matrix point2 = GetPoints()[(*it)(2)];
+
+            dlovi::Matrix edge10 = point1 - point0;
+            dlovi::Matrix edge20 = point2 - point0;
+
+            dlovi::Matrix normal = edge20.cross(edge10);
+            normal = normal / normal.norm();
+
+            glNormal3d(normal(0), normal(1), normal(2));
+
+            //glTexCoord3d(GetPoints()[(*it)(0)](0), GetPoints()[(*it)(0)](1), GetPoints()[(*it)(0)](2));
+            glVertex3d(GetPoints()[(*it)(0)](0), GetPoints()[(*it)(0)](1), GetPoints()[(*it)(0)](2));
+
+            //glTexCoord3d(GetPoints()[(*it)(1)](0), GetPoints()[(*it)(1)](1), GetPoints()[(*it)(1)](2));
+            glVertex3d(GetPoints()[(*it)(1)](0), GetPoints()[(*it)(1)](1), GetPoints()[(*it)(1)](2));
+
+            //glTexCoord3d(GetPoints()[(*it)(2)](0), GetPoints()[(*it)(2)](1), GetPoints()[(*it)(2)](2));
+            glVertex3d(GetPoints()[(*it)(2)](0), GetPoints()[(*it)(2)](1), GetPoints()[(*it)(2)](2));
+        }
+        glEnd();
+
+//        glDisable(GL_DEPTH_TEST);
+        glDisable(GL_LIGHTING);
+
+
     }
 
-    void ModelDrawer::AddTexture(KeyFrame* pKF)
+
+    void ModelDrawer::UpdateModel()
     {
-        unique_lock<mutex> lock(mMutexTexture);
-        const long unsigned int frameID = pKF->mnFrameId;
-        if (mlTextureQueue.size() >= mnMaxTextureQueueSize) {
-            mlTextureQueue.pop_front();
-        }
-        mlTextureQueue.push_back(frameID);
+        if(mbModelUpdateRequested && ! mbModelUpdateDone)
+            return;
 
-    }
-
-
-    void ModelDrawer::AddFrame(const long unsigned int &frameID, const cv::Mat &im)
-    {
-        unique_lock<mutex> lock(mMutexFrame);
-        if (mmFrameQueue.size() >= mnMaxFrameQueueSize) {
-            mmFrameQueue.erase(mmFrameQueue.begin());
-        }
-        if (mmFrameQueue.count(frameID) > 0){
-            std::cerr << "ERROR: trying to add an existing frame" << std::endl;
+        if(mbModelUpdateRequested && mbModelUpdateDone){
+            mModel = mUpdatedModel;
+            mbModelUpdateRequested = false;
             return;
         }
-        mmFrameQueue.insert(make_pair(frameID,im.clone()));
+
+        mbModelUpdateDone = false;
+        mbModelUpdateRequested = true; // implicitly signals SurfaceInferer thread which is polling
+    }
+
+    void ModelDrawer::SetUpdatedModel(const vector<dlovi::Matrix> & modelPoints, const list<dlovi::Matrix> & modelTris)
+    {
+        mUpdatedModel.first = modelPoints;
+        mUpdatedModel.second = modelTris;
+    }
+
+    vector<dlovi::Matrix> & ModelDrawer::GetPoints()
+    {
+        return mModel.first;
+    }
+
+    list<dlovi::Matrix> & ModelDrawer::GetTris()
+    {
+        return mModel.second;
+    }
+
+    void ModelDrawer::MarkUpdateDone()
+    {
+        mbModelUpdateDone = true;
+    }
+
+    bool ModelDrawer::UpdateRequested()
+    {
+        return mbModelUpdateRequested;
+    }
+
+    bool ModelDrawer::UpdateDone()
+    {
+        return mbModelUpdateDone;
     }
 
 

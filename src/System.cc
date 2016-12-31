@@ -95,7 +95,7 @@ System::System(const string &strVocFile, const string &strSettingsFile, const eS
 
     //Initialize the Tracking thread
     //(it will live in the main thread of execution, the one that called this constructor)
-    mpTracker = new Tracking(this, mpVocabulary, mpFrameDrawer, mpMapDrawer, mpModelDrawer,
+    mpTracker = new Tracking(this, mpVocabulary, mpFrameDrawer, mpMapDrawer,
                              mpMap, mpKeyFrameDatabase, strSettingsFile, mSensor);
 
     //Initialize the Local Mapping thread and launch
@@ -107,11 +107,11 @@ System::System(const string &strVocFile, const string &strSettingsFile, const eS
     mptLoopClosing = new thread(&ORB_SLAM2::LoopClosing::Run, mpLoopCloser);
 
     //CARV: Initialize the Modeler thread and launch
-    mpModeler = new Modeler();
+    mpModeler = new Modeler(mpModelDrawer);
     mptModeler = new thread(&ORB_SLAM2::Modeler::Run, mpModeler);
 
     //Initialize the Viewer thread and launch
-    mpViewer = new Viewer(this, mpFrameDrawer,mpMapDrawer,mpTracker,strSettingsFile);
+    mpViewer = new Viewer(this, mpFrameDrawer,mpMapDrawer,mpModelDrawer,mpTracker,strSettingsFile);
     if(bUseViewer)
         mptViewer = new thread(&Viewer::Run, mpViewer);
 
@@ -291,10 +291,12 @@ void System::Shutdown()
     mpLocalMapper->RequestFinish();
     mpLoopCloser->RequestFinish();
     mpViewer->RequestFinish();
+    //carv finish modeler thread
+    mpModeler->RequestFinish();
 
     // Wait until all thread have effectively stopped
     while(!mpLocalMapper->isFinished() || !mpLoopCloser->isFinished()  ||
-          !mpViewer->isFinished()      || mpLoopCloser->isRunningGBA())
+          !mpViewer->isFinished()      || mpLoopCloser->isRunningGBA() || !mpModeler->isFinished())
     {
         usleep(5000);
     }

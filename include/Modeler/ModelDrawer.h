@@ -16,6 +16,9 @@
 #include "Tracking.h"
 #include <map>
 #include <list>
+#include <deque>
+#include "Modeler/Matrix.h"
+
 
 namespace ORB_SLAM2
 {
@@ -27,24 +30,25 @@ namespace ORB_SLAM2
     public:
         ModelDrawer();
 
-        void DrawModel();
+        void DrawModel(float light_x, float light_y , float light_z);
 
-        void AddTexture(KeyFrame* pKF);
+        void UpdateModel();
+        void SetUpdatedModel(const vector<dlovi::Matrix> & modelPoints, const list<dlovi::Matrix> & modelTris);
 
-        void AddFrame(const long unsigned int &frameID, const cv::Mat &im);
+        void MarkUpdateDone();
+        bool UpdateRequested();
+        bool UpdateDone();
 
+        vector<dlovi::Matrix> & GetPoints();
+        list<dlovi::Matrix> & GetTris();
 
     private:
 
-        //queue for the keyframes used to texture the model, keyframe mnFrameId
-        std::list<long unsigned int> mlTextureQueue;
-        size_t mnMaxTextureQueueSize;
-        std::mutex mMutexTexture;
+        bool mbModelUpdateRequested;
+        bool mbModelUpdateDone;
 
-        //queue for the frames recieved, pair<mnID,image>
-        std::map<long unsigned int, cv::Mat> mmFrameQueue;
-        size_t mnMaxFrameQueueSize;
-        std::mutex mMutexFrame;
+        std::pair<vector<dlovi::Matrix>, list<dlovi::Matrix>> mModel;
+        std::pair<vector<dlovi::Matrix>, list<dlovi::Matrix>> mUpdatedModel;
 
     };
 
