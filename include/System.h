@@ -173,6 +173,9 @@ namespace ORB_SLAM2
         std::thread* mptLoopClosing;
         std::thread* mptViewer;
 
+        //CARV: Modeler thread
+        std::thread* mptModeler;
+
         // Reset flag
         std::mutex mMutexReset;
         bool mbReset;

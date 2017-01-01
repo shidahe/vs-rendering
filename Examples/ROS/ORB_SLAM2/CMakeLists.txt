@@ -34,6 +34,26 @@ find_package(OpenCV 2.4.3 REQUIRED)
 find_package(Eigen3 3.1.0 REQUIRED)
 find_package(Pangolin REQUIRED)
 
+# Find CGAL
+set(CMAKE_BUILD_TYPE_BACKUP ${CMAKE_BUILD_TYPE})
+set(CMAKE_BUILD_TYPE "Release")
+find_package(CGAL REQUIRED COMPONENTS Core)
+include( ${CGAL_USE_FILE} )
+set(CMAKE_BUILD_TYPE ${CMAKE_BUILD_TYPE_BACKUP})
+# Find Boost
+find_package(Boost REQUIRED)
+include_directories(${Boost_INCLUDE_DIR})
+link_directories(${Boost_LIBRARY_DIR})
+# BLAS and LAPACK
+#set(BLAS_DIR /path/to/blas)
+#find_package(BLAS REQUIRED)
+#include_directories(${BLAS_INCLUDE_DIR})
+#link_directories(${BLAS_LIBRARY_DIR})
+#set(LAPACK_DIR /path/to/lapack)
+find_package(LAPACK REQUIRED)
+#include_directories(${LAPACK_INCLUDE_DIR})
+link_directories(${LAPACK_LIBRARY_DIR})
+
 include_directories(
 ${PROJECT_SOURCE_DIR}
 ${PROJECT_SOURCE_DIR}/../../../
@@ -48,6 +68,8 @@ ${Pangolin_LIBRARIES}
 ${PROJECT_SOURCE_DIR}/../../../Thirdparty/DBoW2/lib/libDBoW2.so
 ${PROJECT_SOURCE_DIR}/../../../Thirdparty/g2o/lib/libg2o.so
 ${PROJECT_SOURCE_DIR}/../../../lib/libORB_SLAM2.so
+        lapack
+        blas
 )
 
 # Node for monocular camera

@@ -47,6 +47,9 @@ namespace ORB_SLAM2 {
 
         void SetReferenceMapPoints(const std::vector<MapPoint *> &vpMPs);
 
+        void InformNewBigChange();
+        int GetLastBigChangeIdx();
+
         std::vector<KeyFrame *> GetAllKeyFrames();
 
         std::vector<MapPoint *> GetAllMapPoints();
