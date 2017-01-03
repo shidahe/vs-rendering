@@ -44,12 +44,8 @@ namespace ORB_SLAM2
 
             UpdateModel();
 
-//        std::ofstream pointsOutput("drawingPoints.txt");
-
 //            glEnable(GL_POINT_SMOOTH);
 //            glEnable(GL_LINE_SMOOTH);
-            glEnable(GL_TEXTURE_2D);
-//            glBindTexture(GL_TEXTURE_2D, frameTex[0]);
 
             glPointSize(3);
             glBegin(GL_POINTS);
@@ -57,12 +53,10 @@ namespace ORB_SLAM2
 
             for (size_t i = 0; i < GetPoints().size(); i++) {
                 glVertex3d(GetPoints()[i](0), GetPoints()[i](1), GetPoints()[i](2));
-//            pointsOutput << GetPoints()[i](0) << " " << GetPoints()[i](1) << " " << GetPoints()[i](2) << endl;
             }
             glEnd();
-//        pointsOutput.close();
 
-//        GLfloat light_position[] = { light_x, light_y, light_z, 0.0 };
+//            GLfloat light_position[] = { light_x, light_y, light_z, 0.0 };
 //            GLfloat light_position[] = {10, 10, 10, 0};
 //
 //            glShadeModel(GL_FLAT);
@@ -79,44 +73,56 @@ namespace ORB_SLAM2
 //            glEnable(GL_LIGHTING);
 //            glEnable(GL_LIGHT0);
 
+            glEnable(GL_TEXTURE_2D);
+
             glBegin(GL_TRIANGLES);
-            for (list<dlovi::Matrix>::const_iterator it = GetTris().begin(); it != GetTris().end(); it++) {
 
-                dlovi::Matrix point0 = GetPoints()[(*it)(0)];
-                dlovi::Matrix point1 = GetPoints()[(*it)(1)];
-                dlovi::Matrix point2 = GetPoints()[(*it)(2)];
+            glTexCoord2f(0,0);
+            glVertex3d(-1,1,0);
 
-                dlovi::Matrix edge10 = point1 - point0;
-                dlovi::Matrix edge20 = point2 - point0;
+            glTexCoord2f(1,0);
+            glVertex3d(1,1,0);
 
-                dlovi::Matrix normal = edge20.cross(edge10);
-                normal = normal / normal.norm();
+            glTexCoord2f(0,1);
+            glVertex3d(-1,-1,0);
 
-                TextureFrame tex = imAndTexFrame[0].second;
-                vector<float> uv0 = tex.GetTexCoordinate(point0(0),point0(1),point0(2));
-                vector<float> uv1 = tex.GetTexCoordinate(point1(0),point1(1),point1(2));
-                vector<float> uv2 = tex.GetTexCoordinate(point2(0),point2(1),point2(2));
-
-                glNormal3d(normal(0), normal(1), normal(2));
-
+//            for (list<dlovi::Matrix>::const_iterator it = GetTris().begin(); it != GetTris().end(); it++) {
+//
+//                dlovi::Matrix point0 = GetPoints()[(*it)(0)];
+//                dlovi::Matrix point1 = GetPoints()[(*it)(1)];
+//                dlovi::Matrix point2 = GetPoints()[(*it)(2)];
+//
+//                dlovi::Matrix edge10 = point1 - point0;
+//                dlovi::Matrix edge20 = point2 - point0;
+//
+//                dlovi::Matrix normal = edge20.cross(edge10);
+//                normal = normal / normal.norm();
+//
+//                TextureFrame tex = imAndTexFrame[0].second;
+//                vector<float> uv0 = tex.GetTexCoordinate(point0(0),point0(1),point0(2));
+//                vector<float> uv1 = tex.GetTexCoordinate(point1(0),point1(1),point1(2));
+//                vector<float> uv2 = tex.GetTexCoordinate(point2(0),point2(1),point2(2));
+//
+//                glNormal3d(normal(0), normal(1), normal(2));
+//
 //                if (uv0[0] > 0 && uv0[0] < 1 && uv0[1] > 0 && uv0[1] < 1)
 //                    glTexCoord2f(uv0[0],uv0[1]);
-//                glTexCoord3d(point0(0),point0(1),point0(2));
-                glTexCoord2d(point0(0),point0(1));
-                glVertex3d(point0(0),point0(1),point0(2));
-
+////                glTexCoord3d(point0(0),point0(1),point0(2));
+////                glTexCoord2d(point0(0),point0(1));
+//                glVertex3d(point0(0),point0(1),point0(2));
+//
 //                if (uv1[0] > 0 && uv1[0] < 1 && uv1[1] > 0 && uv1[1] < 1)
 //                    glTexCoord2f(uv1[0],uv1[1]);
-//                glTexCoord3d(point1(0),point1(1),point1(2));
-                glTexCoord2d(point1(0),point1(1));
-                glVertex3d(point1(0),point1(1)  ,point1(2));
-
+////                glTexCoord3d(point1(0),point1(1),point1(2));
+////                glTexCoord2d(point1(0),point1(1));
+//                glVertex3d(point1(0),point1(1)  ,point1(2));
+//
 //                if (uv2[0] > 0 && uv2[0] < 1 && uv2[1] > 0 && uv2[1] < 1)
 //                    glTexCoord2f(uv2[0],uv2[1]);
-//                glTexCoord3d(point2(0),point2(1),point2(2));
-                glTexCoord2d(point2(0),point2(1));
-                glVertex3d(point2(0),point2(1),point2(2));
-            }
+////                glTexCoord3d(point2(0),point2(1),point2(2));
+////                glTexCoord2d(point2(0),point2(1));
+//                glVertex3d(point2(0),point2(1),point2(2));
+//            }
             glEnd();
 
 //            glDisable(GL_LIGHTING);

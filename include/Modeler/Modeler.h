@@ -50,11 +50,11 @@ namespace ORB_SLAM2 {
             const float u=fx*PcX*invz+cx;
             const float v=fy*PcY*invz+cy;
 
-//            u = u / (mnMaxX - mnMinX);
-//            v = v / (mnMaxY - mnMinY);
+            float uTex = u / (mnMaxX - mnMinX);
+            float vTex = v / (mnMaxY - mnMinY);
             std::vector<float> uv;
-            uv.push_back(u);
-            uv.push_back(v);
+            uv.push_back(uTex);
+            uv.push_back(vTex);
             return uv;
         }
 
