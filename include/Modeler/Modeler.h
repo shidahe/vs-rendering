@@ -21,6 +21,51 @@ namespace ORB_SLAM2 {
     class KeyFrame;
     class ModelDrawer;
 
+    class TextureFrame {
+    public:
+        TextureFrame(KeyFrame* pKF){
+            frameID = pKF->mnFrameId;
+            Rcw = pKF->GetPoseInverse().rowRange(0,3).colRange(0,3);
+            tcw = pKF->GetPoseInverse().rowRange(0,3).col(3);
+            fx = pKF->fx;
+            fy = pKF->fy;
+            cx = pKF->cx;
+            cy = pKF->cy;
+            mnMinX = pKF->mnMinX;
+            mnMaxX = pKF->mnMaxX;
+            mnMinY = pKF->mnMinY;
+            mnMaxX = pKF->mnMaxY;
+        }
+
+        vector<float> GetTexCoordinate(float x, float y, float z){
+            const cv::Mat P = (cv::Mat_<float>(3,1) << x, y, z);
+            // 3D in camera coordinates
+            const cv::Mat Pc = Rcw*P+tcw;
+            const float &PcX = Pc.at<float>(0);
+            const float &PcY= Pc.at<float>(1);
+            const float &PcZ = Pc.at<float>(2);
+
+            // Project in image and check it is not outside
+            const float invz = 1.0f/PcZ;
+            const float u=fx*PcX*invz+cx;
+            const float v=fy*PcY*invz+cy;
+
+//            u = u / (mnMaxX - mnMinX);
+//            v = v / (mnMaxY - mnMinY);
+            std::vector<float> uv;
+            uv.push_back(u);
+            uv.push_back(v);
+            return uv;
+        }
+
+        long unsigned int frameID;
+        cv::Mat Rcw;
+        cv::Mat tcw;
+        float fx, fy, cx, cy;
+        float mnMinX, mnMaxX, mnMinY, mnMaxY;
+
+    };
+
     class Modeler {
     public:
         Modeler(ModelDrawer* pModelDrawer);
@@ -46,6 +91,9 @@ namespace ORB_SLAM2 {
 
         void AddTexture(KeyFrame* pKF);
         void AddFrame(const long unsigned int &frameID, const cv::Mat &im);
+
+        // get last n keyframes for texturing
+        vector<pair<cv::Mat,TextureFrame>> GetTextures(int n);
 
     public:
         void ResetIfRequested();
@@ -81,7 +129,7 @@ namespace ORB_SLAM2 {
 
 
         //queue for the keyframes used to texture the model, keyframe mnFrameId
-        std::deque<long unsigned int> mdTextureQueue;
+        std::deque<TextureFrame> mdTextureQueue;
         size_t mnMaxTextureQueueSize;
         std::mutex mMutexTexture;
 

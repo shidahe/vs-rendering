@@ -17,13 +17,16 @@
 #include <map>
 #include <list>
 #include <deque>
+#include <vector>
 #include "Modeler/Matrix.h"
+#include "Modeler/Modeler.h"
 
 
 namespace ORB_SLAM2
 {
 
     class KeyFrame;
+    class Modeler;
 
     class ModelDrawer
     {
@@ -42,7 +45,11 @@ namespace ORB_SLAM2
         vector<dlovi::Matrix> & GetPoints();
         list<dlovi::Matrix> & GetTris();
 
+        void SetModeler(Modeler* pModeler);
+
     private:
+
+        Modeler* mpModeler;
 
         bool mbModelUpdateRequested;
         bool mbModelUpdateDone;

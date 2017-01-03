@@ -38,6 +38,8 @@ namespace ORB_SLAM2
     class LoopClosing;
     class Map;
 
+    class Modeler;
+
     class LocalMapping
     {
     public:

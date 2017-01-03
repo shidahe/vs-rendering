@@ -241,8 +241,6 @@ namespace ORB_SLAM2
     {
         mImGray = im;
 
-//        cvtColor(mImGray,mImGray,CV_YUV2RGB);
-
         if(mImGray.channels()==3)
         {
             if(mbRGB)

@@ -172,11 +172,14 @@ namespace ORB_SLAM2 {
     void Modeler::AddTexture(KeyFrame* pKF)
     {
         unique_lock<mutex> lock(mMutexTexture);
-        const long unsigned int frameID = pKF->mnFrameId;
+
+        TextureFrame texFrame(pKF);
+
         if (mdTextureQueue.size() >= mnMaxTextureQueueSize) {
             mdTextureQueue.pop_front();
         }
-        mdTextureQueue.push_back(frameID);
+
+        mdTextureQueue.push_back(texFrame);
 
     }
 
@@ -191,6 +194,23 @@ namespace ORB_SLAM2 {
             return;
         }
         mmFrameQueue.insert(make_pair(frameID,im.clone()));
+    }
+
+
+    // get last n keyframes for texturing
+    vector<pair<cv::Mat,TextureFrame>> Modeler::GetTextures(int n)
+    {
+        unique_lock<mutex> lock(mMutexTexture);
+        unique_lock<mutex> lock2(mMutexFrame);
+        int nLastKF = mdTextureQueue.size() - 1;
+        vector<pair<cv::Mat,TextureFrame>> imAndTexFrame;
+        // n most recent KFs
+        for (int i = 0; i < n && i <= nLastKF; i++){
+            TextureFrame texFrame = mdTextureQueue[std::max(0,nLastKF-i)];
+            imAndTexFrame.push_back(make_pair(mmFrameQueue[texFrame.frameID],texFrame));
+        }
+
+        return imAndTexFrame;
     }
 
 }
