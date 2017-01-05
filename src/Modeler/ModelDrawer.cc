@@ -117,12 +117,6 @@ namespace ORB_SLAM2
 ////            GLfloat light_position[] = {10, 10, 10, 0};
         glLightfv(GL_LIGHT0, GL_POSITION, light_position);
 
-        glPointSize(10);
-        glBegin(GL_POINTS);
-        glColor3f(0.0, 1.0, 0.0);
-        glVertex3d(0, 0, 0);
-        glEnd();
-
         glPopMatrix();
 
         glEnable(GL_LIGHTING);
