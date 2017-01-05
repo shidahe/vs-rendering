@@ -101,7 +101,7 @@ namespace ORB_SLAM2 {
         } else {
             mTranscriptInterface.addKeyFrameInsertionEntry(pKF);
         }
-        AddTexture(pKF);
+        //AddTexture(pKF);
 
         pKF->SetErase();
     }
@@ -174,6 +174,20 @@ namespace ORB_SLAM2 {
         unique_lock<mutex> lock(mMutexTexture);
 
         TextureFrame texFrame(pKF);
+
+        if (mdTextureQueue.size() >= mnMaxTextureQueueSize) {
+            mdTextureQueue.pop_front();
+        }
+
+        mdTextureQueue.push_back(texFrame);
+
+    }
+
+    void Modeler::AddTexture(Frame* pF)
+    {
+        unique_lock<mutex> lock(mMutexTexture);
+
+        TextureFrame texFrame(pF);
 
         if (mdTextureQueue.size() >= mnMaxTextureQueueSize) {
             mdTextureQueue.pop_front();

@@ -33,7 +33,10 @@ namespace ORB_SLAM2
     public:
         ModelDrawer();
 
-        void DrawModel(float light_x, float light_y , float light_z);
+        void DrawModel();
+        void DrawModelPoints();
+        void DrawTriangles(pangolin::OpenGlMatrix &Twc);
+        void DrawFrame();
 
         void UpdateModel();
         void SetUpdatedModel(const vector<dlovi::Matrix> & modelPoints, const list<dlovi::Matrix> & modelTris);

@@ -9,6 +9,7 @@
 
 #include <mutex>
 
+#include "Frame.h"
 #include "Modeler/SFMTranscriptInterface_ORBSLAM.h"
 #include "Modeler/SFMTranscriptInterface_Delaunay.h"
 #include "Modeler/ModelDrawer.h"
@@ -19,25 +20,34 @@ namespace ORB_SLAM2 {
     class LoopClosing;
     class LocalMapping;
     class KeyFrame;
+    class Frame;
     class ModelDrawer;
 
     class TextureFrame {
     public:
         TextureFrame(KeyFrame* pKF){
             frameID = pKF->mnFrameId;
-            Rcw = pKF->GetPoseInverse().rowRange(0,3).colRange(0,3);
-            tcw = pKF->GetPoseInverse().rowRange(0,3).col(3);
+            // GetPose instead GetPoseInverse, seems camera position need to be inversed
+            Rcw = pKF->GetPose().rowRange(0,3).colRange(0,3);
+            tcw = pKF->GetPose().rowRange(0,3).col(3);
             fx = pKF->fx;
             fy = pKF->fy;
             cx = pKF->cx;
             cy = pKF->cy;
-            mnMinX = pKF->mnMinX;
-            mnMaxX = pKF->mnMaxX;
-            mnMinY = pKF->mnMinY;
-            mnMaxX = pKF->mnMaxY;
         }
 
-        vector<float> GetTexCoordinate(float x, float y, float z){
+        TextureFrame(Frame* pF){
+            frameID = pF->mnId;
+            // GetPose instead GetPoseInverse, seems camera position need to be inversed
+            Rcw = pF->mTcw.rowRange(0,3).colRange(0,3);
+            tcw = pF->mTcw.rowRange(0,3).col(3);
+            fx = pF->fx;
+            fy = pF->fy;
+            cx = pF->cx;
+            cy = pF->cy;
+        }
+
+        vector<float> GetTexCoordinate(float x, float y, float z, cv::Size s){
             const cv::Mat P = (cv::Mat_<float>(3,1) << x, y, z);
             // 3D in camera coordinates
             const cv::Mat Pc = Rcw*P+tcw;
@@ -50,8 +60,8 @@ namespace ORB_SLAM2 {
             const float u=fx*PcX*invz+cx;
             const float v=fy*PcY*invz+cy;
 
-            float uTex = u / (mnMaxX - mnMinX);
-            float vTex = v / (mnMaxY - mnMinY);
+            float uTex = u / s.width;
+            float vTex = v / s.height;
             std::vector<float> uv;
             uv.push_back(uTex);
             uv.push_back(vTex);
@@ -62,8 +72,6 @@ namespace ORB_SLAM2 {
         cv::Mat Rcw;
         cv::Mat tcw;
         float fx, fy, cx, cy;
-        float mnMinX, mnMaxX, mnMinY, mnMaxY;
-
     };
 
     class Modeler {
@@ -90,6 +98,7 @@ namespace ORB_SLAM2 {
 
 
         void AddTexture(KeyFrame* pKF);
+        void AddTexture(Frame* pF);
         void AddFrame(const long unsigned int &frameID, const cv::Mat &im);
 
         // get last n keyframes for texturing

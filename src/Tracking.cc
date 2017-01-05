@@ -261,10 +261,12 @@ namespace ORB_SLAM2
         else
             mCurrentFrame = Frame(mImGray,timestamp,mpORBextractorLeft,mpORBVocabulary,mK,mDistCoef,mbf,mThDepth);
 
+        Track();
+
         //CARV: aquire rgb image and frameid
         mpModeler->AddFrame(mCurrentFrame.mnId, im);
-
-        Track();
+        if(mState == OK)
+            mpModeler->AddTexture(&mCurrentFrame);
 
         return mCurrentFrame.mTcw.clone();
     }

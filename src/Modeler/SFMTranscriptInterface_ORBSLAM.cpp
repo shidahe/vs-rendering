@@ -138,8 +138,9 @@ void SFMTranscriptInterface_ORBSLAM::addFirstKeyFrameInsertionEntry(KeyFrame *k)
             throw dlovi::Exception("KeyFrame already has a record.  Double addition.");
 
         // // TODO: Instead of inverting the whole transform, we should be able to just use the negative translation.
+        // GetPose instead GetPoseInverse, seems camera position need to be inversed
         cv::Mat se3WfromC = k->GetPose();
-        se3WfromC = se3WfromC.inv();
+//        se3WfromC = se3WfromC.inv();
         matNewCam(0) = se3WfromC.at<float>(0,3);
         matNewCam(1) = se3WfromC.at<float>(1,3);
         matNewCam(2) = se3WfromC.at<float>(2,3);
@@ -197,6 +198,7 @@ void SFMTranscriptInterface_ORBSLAM::addKeyFrameInsertionEntry(KeyFrame *k){
             throw dlovi::Exception("KeyFrame already has a record.  Double addition.");
 
         // TODO: Instead of inverting the whole transform, we should be able to just use the negative translation.
+        // GetPose instead GetPoseInverse, seems camera position need to be inversed
         cv::Mat se3WfromC = k->GetPose();
         se3WfromC = se3WfromC.inv();
         matNewCam(0) = se3WfromC.at<float>(0,3);

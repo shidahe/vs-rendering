@@ -15,6 +15,9 @@ Camera.k2: -0.428816
 Camera.p1: -0.000168
 Camera.p2: 0.002125
 
+Camera.width: 640
+Camera.height: 480
+
 # Camera frames per second 
 Camera.fps: 30.0
 
@@ -52,6 +55,6 @@ Viewer.CameraSize: 0.08
 Viewer.CameraLineWidth: 3
 Viewer.ViewpointX: 0
 Viewer.ViewpointY: -0.7
-Viewer.ViewpointZ: -1.8
+Viewer.ViewpointZ: -1
 Viewer.ViewpointF: 500
 
