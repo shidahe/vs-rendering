@@ -36,11 +36,25 @@ namespace ORB_SLAM2
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
-                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
-                             imSize.width, imSize.height, 0,
-                             GL_RGB,
-                             GL_UNSIGNED_BYTE,
-                             imAndTexFrame[i].first.data);
+                if (imAndTexFrame[i].first.channels() == 1)
+                {
+                    glTexImage2D(GL_TEXTURE_2D, 0, GL_R8,
+                                 imSize.width, imSize.height, 0,
+                                 GL_RED,
+                                 GL_UNSIGNED_BYTE,
+                                 imAndTexFrame[i].first.data);
+                    GLint swizzleMask[] = {GL_RED, GL_RED, GL_RED, GL_RED};
+                    glTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_RGBA, swizzleMask);
+                }
+                else if (imAndTexFrame[i].first.channels() == 3)
+                {
+                    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
+                                 imSize.width, imSize.height, 0,
+                                 GL_RGB,
+                                 GL_UNSIGNED_BYTE,
+                                 imAndTexFrame[i].first.data);
+                }
+
             }
 
             UpdateModel();
