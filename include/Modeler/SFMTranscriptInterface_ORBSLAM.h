@@ -7,11 +7,7 @@
 #include <map>
 #include "MapPoint.h"
 #include "KeyFrame.h"
-#include "Modeler/Modeler.h"
-
-//class ORB_SLAM2::MapPoint;
-//class ORB_SLAM2::KeyFrame;
-//class ORB_SLAM2::ModelFrame;
+#include "Modeler/ModelFrame.h"
 
 typedef ORB_SLAM2::MapPoint MapPoint;
 typedef ORB_SLAM2::KeyFrame KeyFrame;

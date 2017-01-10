@@ -39,11 +39,12 @@ namespace ORB_SLAM2 {
             // Check if there are keyframes in the queue
             if(CheckNewTranscriptEntry())
             {
-                PopKeyFrameIntoTranscript();
+                if (PopFrameIntoTranscript())
+                {
+                    RunRemainder();
 
-                RunRemainder();
-
-                UpdateModelDrawer();
+                    UpdateModelDrawer();
+                }
             }
 
             ResetIfRequested();
@@ -72,7 +73,7 @@ namespace ORB_SLAM2 {
     bool Modeler::CheckNewTranscriptEntry()
     {
         unique_lock<mutex> lock(mMutexTranscript);
-        return(!mlpTranscriptKeyFrameQueue.empty());
+        return(!mlpTranscriptFrameQueue.empty());
     }
 
     void Modeler::RunRemainder()
@@ -113,11 +114,14 @@ namespace ORB_SLAM2 {
             mlpTranscriptFrameQueue.push_back(pMF);
     }
 
-    void Modeler::PopFrameIntoTranscript()
+    bool Modeler::PopFrameIntoTranscript()
     {
         unique_lock<mutex> lock(mMutexTranscript);
         ModelFrame* pMF = mlpTranscriptFrameQueue.front();
         mlpTranscriptFrameQueue.pop_front();
+
+        if (pMF->mTcw.empty())
+            return false;
 
         if (mbFirstKeyFrame) {
             mTranscriptInterface.addFirstFrameInsertionEntry(pMF);
@@ -126,6 +130,7 @@ namespace ORB_SLAM2 {
             mTranscriptInterface.addFrameInsertionEntry(pMF);
         }
 
+        return true;
     }
 
     void Modeler::RequestReset()
@@ -154,12 +159,19 @@ namespace ORB_SLAM2 {
             {
                 unique_lock<mutex> lock2(mMutexTranscript);
                 mlpTranscriptKeyFrameQueue.clear();
+                mlpTranscriptFrameQueue.clear();
             }
 //            mTranscriptInterface.addResetEntry();
 //            RunRemainder();
             mAlgInterface.rewind();
-            mmFrameQueue.clear();
-            mdTextureQueue.clear();
+            {
+                unique_lock<mutex> lock2(mMutexTexture);
+                mmFrameQueue.clear();
+            }
+            {
+                unique_lock<mutex> lock(mMutexTexture);
+                mdTextureQueue.clear();
+            }
             mbFirstKeyFrame = true;
 
             mbResetRequested=false;
@@ -243,7 +255,7 @@ namespace ORB_SLAM2 {
         // n most recent KFs
         for (int i = 0; i < n && i <= nLastKF; i++){
             TextureFrame texFrame = mdTextureQueue[std::max(0,nLastKF-i)];
-            imAndTexFrame.push_back(make_pair(mmFrameQueue[texFrame.frameID],texFrame));
+            imAndTexFrame.push_back(make_pair(mmFrameQueue[texFrame.mFrameID],texFrame));
         }
 
         return imAndTexFrame;
