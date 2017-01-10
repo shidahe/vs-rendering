@@ -264,9 +264,14 @@ namespace ORB_SLAM2
         Track();
 
         //CARV: aquire rgb image and frameid
-        mpModeler->AddFrame(mCurrentFrame.mnId, im);
-        if(mState == OK)
+        cv::Mat imu;
+        cv::undistort(im,imu,mK,mDistCoef);
+        mpModeler->AddFrame(mCurrentFrame.mnId, imu);
+        if(mState == OK) {
             mpModeler->AddTexture(&mCurrentFrame);
+            ModelFrame mf(&mCurrentFrame, mpSystem->GetTrackedMapPoints());
+            mpModeler->PushFrame(&mf);
+        }
 
         return mCurrentFrame.mTcw.clone();
     }

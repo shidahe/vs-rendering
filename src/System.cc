@@ -107,7 +107,7 @@ namespace ORB_SLAM2
         mptLoopClosing = new thread(&ORB_SLAM2::LoopClosing::Run, mpLoopCloser);
 
         //CARV: Initialize the Modeler thread and launch
-        mpModeler = new Modeler(mpModelDrawer);
+        mpModeler = new Modeler(this,mpModelDrawer);
         mptModeler = new thread(&ORB_SLAM2::Modeler::Run, mpModeler);
 
         //Initialize the Viewer thread and launch

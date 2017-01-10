@@ -106,6 +106,28 @@ namespace ORB_SLAM2 {
         pKF->SetErase();
     }
 
+    void Modeler::PushFrame(ModelFrame* pMF)
+    {
+        unique_lock<mutex> lock(mMutexTranscript);
+        if(pMF->mFrameID!=0)
+            mlpTranscriptFrameQueue.push_back(pMF);
+    }
+
+    void Modeler::PopFrameIntoTranscript()
+    {
+        unique_lock<mutex> lock(mMutexTranscript);
+        ModelFrame* pMF = mlpTranscriptFrameQueue.front();
+        mlpTranscriptFrameQueue.pop_front();
+
+        if (mbFirstKeyFrame) {
+            mTranscriptInterface.addFirstFrameInsertionEntry(pMF);
+            mbFirstKeyFrame = false;
+        } else {
+            mTranscriptInterface.addFrameInsertionEntry(pMF);
+        }
+
+    }
+
     void Modeler::RequestReset()
     {
         {

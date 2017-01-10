@@ -9,7 +9,9 @@
 
 #include <mutex>
 
+#include "MapPoint.h"
 #include "Frame.h"
+#include "System.h"
 #include "Modeler/SFMTranscriptInterface_ORBSLAM.h"
 #include "Modeler/SFMTranscriptInterface_Delaunay.h"
 #include "Modeler/ModelDrawer.h"
@@ -22,43 +24,44 @@ namespace ORB_SLAM2 {
     class KeyFrame;
     class Frame;
     class ModelDrawer;
+    class MapPoint;
 
     class TextureFrame {
     public:
         TextureFrame(KeyFrame* pKF){
-            frameID = pKF->mnFrameId;
+            mFrameID = pKF->mnFrameId;
             // GetPose instead GetPoseInverse, seems camera position need to be inversed
-            Rcw = pKF->GetPose().rowRange(0,3).colRange(0,3);
-            tcw = pKF->GetPose().rowRange(0,3).col(3);
-            fx = pKF->fx;
-            fy = pKF->fy;
-            cx = pKF->cx;
-            cy = pKF->cy;
+            mRcw = pKF->GetPose().rowRange(0,3).colRange(0,3);
+            mtcw = pKF->GetPose().rowRange(0,3).col(3);
+            mfx = pKF->fx;
+            mfy = pKF->fy;
+            mcx = pKF->cx;
+            mcy = pKF->cy;
         }
 
         TextureFrame(Frame* pF){
-            frameID = pF->mnId;
+            mFrameID = pF->mnId;
             // GetPose instead GetPoseInverse, seems camera position need to be inversed
-            Rcw = pF->mTcw.rowRange(0,3).colRange(0,3);
-            tcw = pF->mTcw.rowRange(0,3).col(3);
-            fx = pF->fx;
-            fy = pF->fy;
-            cx = pF->cx;
-            cy = pF->cy;
+            mRcw = pF->mTcw.rowRange(0,3).colRange(0,3);
+            mtcw = pF->mTcw.rowRange(0,3).col(3);
+            mfx = pF->fx;
+            mfy = pF->fy;
+            mcx = pF->cx;
+            mcy = pF->cy;
         }
 
         vector<float> GetTexCoordinate(float x, float y, float z, cv::Size s){
             const cv::Mat P = (cv::Mat_<float>(3,1) << x, y, z);
             // 3D in camera coordinates
-            const cv::Mat Pc = Rcw*P+tcw;
+            const cv::Mat Pc = mRcw*P+mtcw;
             const float &PcX = Pc.at<float>(0);
             const float &PcY= Pc.at<float>(1);
             const float &PcZ = Pc.at<float>(2);
 
             // Project in image and check it is not outside
             const float invz = 1.0f/PcZ;
-            const float u=fx*PcX*invz+cx;
-            const float v=fy*PcY*invz+cy;
+            const float u=mfx*PcX*invz+mcx;
+            const float v=mfy*PcY*invz+mcy;
 
             float uTex = u / s.width;
             float vTex = v / s.height;
@@ -68,10 +71,23 @@ namespace ORB_SLAM2 {
             return uv;
         }
 
-        long unsigned int frameID;
-        cv::Mat Rcw;
-        cv::Mat tcw;
-        float fx, fy, cx, cy;
+        long unsigned int mFrameID;
+        cv::Mat mRcw;
+        cv::Mat mtcw;
+        float mfx, mfy, mcx, mcy;
+    };
+
+    class ModelFrame {
+    public:
+        ModelFrame(Frame* pF, vector<MapPoint*> vMPs){
+            mframeID = pF->mnId;
+            mTcw = pF->mTcw.clone();
+            mvMPs = vMPs;
+        }
+
+        long unsigned int mFrameID;
+        cv::Mat mTcw;
+        vector<MapPoint*> mvMPs;
     };
 
     class Modeler {
@@ -125,9 +141,13 @@ namespace ORB_SLAM2 {
         std::mutex mMutexTranscript;
 
         std::list<KeyFrame*> mlpTranscriptKeyFrameQueue;
+        std::list<ModelFrame*> mlpTranscriptFrameQueue;
+
 
         void PushKeyFrame(KeyFrame*);
         void PopKeyFrameIntoTranscript();
+        void PushFrame(ModelFrame*);
+        void PopFrameIntoTranscript();
 
         //CARV interface
         SFMTranscriptInterface_ORBSLAM mTranscriptInterface; // An interface to a transcript / log of the map's work.

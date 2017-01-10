@@ -91,7 +91,7 @@ namespace ORB_SLAM2
                 }
 
                 //CARV: add keyframe to transcript queue
-                mpModeler->PushKeyFrame(mpCurrentKeyFrame);
+//                mpModeler->PushKeyFrame(mpCurrentKeyFrame);
 
                 mpLoopCloser->InsertKeyFrame(mpCurrentKeyFrame);
 

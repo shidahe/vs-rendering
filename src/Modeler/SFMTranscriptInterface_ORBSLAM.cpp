@@ -140,7 +140,7 @@ void SFMTranscriptInterface_ORBSLAM::addFirstKeyFrameInsertionEntry(KeyFrame *k)
         // // TODO: Instead of inverting the whole transform, we should be able to just use the negative translation.
         // GetPose instead GetPoseInverse, seems camera position need to be inversed
         cv::Mat se3WfromC = k->GetPose();
-//        se3WfromC = se3WfromC.inv();
+        se3WfromC = se3WfromC.inv();
         matNewCam(0) = se3WfromC.at<float>(0,3);
         matNewCam(1) = se3WfromC.at<float>(1,3);
         matNewCam(2) = se3WfromC.at<float>(2,3);
@@ -257,6 +257,8 @@ void SFMTranscriptInterface_ORBSLAM::addKeyFrameInsertionEntry(KeyFrame *k){
                 }
             }
             else{
+                if(point->isBad())
+                    continue;
                 // It's not a new point:
                 sVisListExcludingNewPoints.insert(m_mMapPoint_Index[point]); // To be added after the new points in the following loop
             }
@@ -275,6 +277,162 @@ void SFMTranscriptInterface_ORBSLAM::addKeyFrameInsertionEntry(KeyFrame *k){
         dlovi::Exception ex2(ex.what()); ex2.tag("SFMTranscriptInterface_ORBSLAM", "addKeyFrameInsertionEntry"); cerr << ex2.what() << endl; //ex2.raise();
     }
 }
+
+void SFMTranscriptInterface_ORBSLAM::addFirstFrameInsertionEntry(ModelFrame *pMF){
+    try{
+        std::stringstream ssTmp;
+        dlovi::Matrix matNewCam(3, 1);
+        dlovi::Matrix matNewPoint(3, 1);
+        int nPointIndex, nCamIndex;
+
+        long unsigned int ID = pMF->mFrameID;
+
+        if(m_mFrame_Index.count(ID) > 0)
+            throw dlovi::Exception("KeyFrame already has a record.  Double addition.");
+
+        // // TODO: Instead of inverting the whole transform, we should be able to just use the negative translation.
+        // GetPose instead GetPoseInverse, seems camera position need to be inversed
+        cv::Mat se3WfromC = pMF->mTcw.clone();
+        se3WfromC = se3WfromC.inv();
+        matNewCam(0) = se3WfromC.at<float>(0,3);
+        matNewCam(1) = se3WfromC.at<float>(1,3);
+        matNewCam(2) = se3WfromC.at<float>(2,3);
+        ssTmp << "new cam: [" << matNewCam(0) << "; " << matNewCam(1) << "; " << matNewCam(2) << "] {";
+        m_SFMTranscript.addLine(ssTmp.str()); ssTmp.str("");
+
+        // Add a record of the new camera to internal map.
+        nCamIndex = m_mFrame_Index.size();
+        m_mFrame_Index[ID] = nCamIndex;
+
+        std::vector<MapPoint*> mvpMapPoints = pMF->mvMPs;
+        // Process new points and visibility information in this KF
+        for(std::vector<MapPoint*>::iterator it = mvpMapPoints.begin(); it != mvpMapPoints.end(); it++){
+            MapPoint * point = *it;
+
+            if(m_mMapPoint_Index.count(point) == 0){
+                // It's a new point:
+                cv::Mat mWorldPos = point->GetWorldPos();
+                matNewPoint(0) = mWorldPos.at<float>(0);
+                matNewPoint(1) = mWorldPos.at<float>(1);
+                matNewPoint(2) = mWorldPos.at<float>(2);
+
+                if (point->isBad())
+                    continue;
+
+                ssTmp << "new point: [" << matNewPoint(0) << "; " << matNewPoint(1) << "; " << matNewPoint(2) << "]";
+                // Append this point's vis list with special handling.  (Point initialized from epipolar search: > 1 KF, but only 1 KF in our internal structures.)
+                ssTmp << ", 0"; // KF 0 observed it.
+                m_SFMTranscript.addLine(ssTmp.str()); ssTmp.str("");
+
+                // Add a record of the new point to internal map.
+                nPointIndex = m_mMapPoint_Index.size();
+                m_mMapPoint_Index[point] = nPointIndex;
+            }
+            else
+                throw dlovi::Exception("The FIRST KF observed a point that was already added."); // That's bad!  Points are only added through KF-addition.
+        }
+
+        // Close this new-KF entry in the transcript
+        m_SFMTranscript.addLine("}");
+    }
+    catch(std::exception & ex){
+        dlovi::Exception ex2(ex.what()); ex2.tag("SFMTranscriptInterface_ORBSLAM", "addFirstFrameInsertionEntry"); cerr << ex2.what() << endl; //ex2.raise();
+    }
+}
+
+void SFMTranscriptInterface_ORBSLAM::addFrameInsertionEntry(ModelFrame *pMF){
+    try{
+        std::stringstream ssTmp;
+        dlovi::Matrix matNewCam(3, 1);
+        dlovi::Matrix matNewPoint(3, 1);
+        int nPointIndex, nCamIndex;
+
+        long unsigned int ID = pMF->mFrameID;
+
+        if(m_mFrame_Index.count(ID) > 0)
+            throw dlovi::Exception("Frame already has a record.  Double addition.");
+
+        // TODO: Instead of inverting the whole transform, we should be able to just use the negative translation.
+        // GetPose instead GetPoseInverse, seems camera position need to be inversed
+        cv::Mat se3WfromC = pMF->mTcw.clone();
+        se3WfromC = se3WfromC.inv();
+        matNewCam(0) = se3WfromC.at<float>(0,3);
+        matNewCam(1) = se3WfromC.at<float>(1,3);
+        matNewCam(2) = se3WfromC.at<float>(2,3);
+        ssTmp << "new cam: [" << matNewCam(0) << "; " << matNewCam(1) << "; " << matNewCam(2) << "] {";
+        m_SFMTranscript.addLine(ssTmp.str()); ssTmp.str("");
+
+        // Add a record of the new camera to internal map.
+        nCamIndex = m_mFrame_Index.size();
+        m_mFrame_Index[ID] = nCamIndex;
+
+        // Process new points and visibility information in this KF
+        std::set<int> sVisListExcludingNewPoints;
+        std::vector<MapPoint*> mvpMapPoints = pMF->mvMPs;
+        for(std::vector<MapPoint*>::iterator it = mvpMapPoints.begin(); it != mvpMapPoints.end(); it++){
+            MapPoint * point = *it;
+
+            if(m_mMapPoint_Index.count(point) == 0){
+
+                // check if it has valid observation first
+                std::map<KeyFrame*, size_t> mObservations = point->GetObservations();
+                bool hasObservation = false;
+                for(std::map<KeyFrame *,size_t>::iterator it2 = mObservations.begin(); it2 != mObservations.end(); it2++){
+                    if(m_mFrame_Index.count(it2->first->mnFrameId) != 0) {
+                        hasObservation = true;
+                        break;
+                    }
+                }
+
+                if (hasObservation) {
+                    // It's a new point:
+                    cv::Mat mWorldPos = point->GetWorldPos();
+                    matNewPoint(0) = mWorldPos.at<float>(0);
+                    matNewPoint(1) = mWorldPos.at<float>(1);
+                    matNewPoint(2) = mWorldPos.at<float>(2);
+
+                    if (point->isBad())
+                        continue;
+
+                    ssTmp << "new point: [" << matNewPoint(0) << "; " << matNewPoint(1) << "; " << matNewPoint(2)
+                          << "]";
+                    // Append this point's vis list.  (Point initialized from epipolar search: > 1 KF)
+                    for (std::map<KeyFrame *, size_t>::iterator it2 = mObservations.begin();
+                         it2 != mObservations.end(); it2++) {
+                        if (m_mFrame_Index.count(it2->first->mnFrameId) != 0) {
+                            ssTmp << ", " << m_mFrame_Index[it2->first->mnFrameId];
+                        }
+                    }
+
+                    m_SFMTranscript.addLine(ssTmp.str()); ssTmp.str("");
+
+                    // Add a record of the new point to internal map.
+                    nPointIndex = m_mMapPoint_Index.size();
+                    m_mMapPoint_Index[point] = nPointIndex;
+                }
+            }
+            else{
+                if(point->isBad())
+                    continue;
+                // It's not a new point:
+                sVisListExcludingNewPoints.insert(m_mMapPoint_Index[point]); // To be added after the new points in the following loop
+            }
+        }
+
+        // Log all the visibility-ray observations for this KF excluding the newly added points
+        for(std::set<int>::iterator it = sVisListExcludingNewPoints.begin(); it != sVisListExcludingNewPoints.end(); it++){
+            ssTmp << "observation: " << *it;
+            m_SFMTranscript.addLine(ssTmp.str()); ssTmp.str("");
+        }
+
+        // Close this new-KF entry in the transcript
+        m_SFMTranscript.addLine("}");
+    }
+    catch(std::exception & ex){
+        dlovi::Exception ex2(ex.what()); ex2.tag("SFMTranscriptInterface_ORBSLAM", "addFrameInsertionEntry"); cerr << ex2.what() << endl; //ex2.raise();
+    }
+}
+
 
 // void SFMTranscriptInterface_ORBSLAM::addBundleAdjustmentEntry(set<KeyFrame *> & sAdjustSet, set<MapPoint *> & sMapPoints){
 //   try{
