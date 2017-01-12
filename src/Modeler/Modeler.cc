@@ -37,9 +37,9 @@ namespace ORB_SLAM2 {
         while(1)
         {
             // Check if there are keyframes in the queue
-            if(CheckNewTranscriptEntry())
+            if(CheckNewKeyFrameTranscriptEntry())
             {
-                if (PopFrameIntoTranscript())
+                if (PopKeyFrameIntoTranscript())
                 {
                     RunRemainder();
 
@@ -70,7 +70,13 @@ namespace ORB_SLAM2 {
             }
     }
 
-    bool Modeler::CheckNewTranscriptEntry()
+    bool Modeler::CheckNewKeyFrameTranscriptEntry()
+    {
+        unique_lock<mutex> lock(mMutexTranscript);
+        return(!mlpTranscriptKeyFrameQueue.empty());
+    }
+
+    bool Modeler::CheckNewFrameTranscriptEntry()
     {
         unique_lock<mutex> lock(mMutexTranscript);
         return(!mlpTranscriptFrameQueue.empty());
@@ -88,7 +94,7 @@ namespace ORB_SLAM2 {
             mlpTranscriptKeyFrameQueue.push_back(pKF);
     }
 
-    void Modeler::PopKeyFrameIntoTranscript()
+    bool Modeler::PopKeyFrameIntoTranscript()
     {
         unique_lock<mutex> lock(mMutexTranscript);
         KeyFrame* pKF = mlpTranscriptKeyFrameQueue.front();
@@ -105,6 +111,7 @@ namespace ORB_SLAM2 {
         //AddTexture(pKF);
 
         pKF->SetErase();
+        return true;
     }
 
     void Modeler::PushFrame(ModelFrame* pMF)

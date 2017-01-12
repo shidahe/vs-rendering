@@ -11,7 +11,6 @@
 
 namespace ORB_SLAM2
 {
-
     ModelDrawer::ModelDrawer():mbModelUpdateRequested(false), mbModelUpdateDone(true)
     {
     }

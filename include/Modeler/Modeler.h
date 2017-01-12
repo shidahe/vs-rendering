@@ -39,7 +39,8 @@ namespace ORB_SLAM2 {
         void Run();
 
         void UpdateModelDrawer();
-        bool CheckNewTranscriptEntry();
+        bool CheckNewKeyFrameTranscriptEntry();
+        bool CheckNewFrameTranscriptEntry();
         void RunRemainder();
 
         // Thread Synch
@@ -80,7 +81,7 @@ namespace ORB_SLAM2 {
 
 
         void PushKeyFrame(KeyFrame*);
-        void PopKeyFrameIntoTranscript();
+        bool PopKeyFrameIntoTranscript();
         void PushFrame(ModelFrame*);
         bool PopFrameIntoTranscript();
 
