@@ -264,9 +264,11 @@ namespace ORB_SLAM2
         Track();
 
         //CARV: aquire rgb image and frameid
-        cv::Mat imu;
-        cv::undistort(im,imu,mK,mDistCoef);
-        mpModeler->AddFrame(mCurrentFrame.mnId, imu);
+        if(mState != NO_IMAGES_YET && mState != NOT_INITIALIZED){
+            cv::Mat imu;
+            cv::undistort(im,imu,mK,mDistCoef);
+            mpModeler->AddFrame(mCurrentFrame.mnId, imu);
+        }
         if(mState == OK) {
             mpModeler->AddTexture(&mCurrentFrame);
 //            vector<MapPoint*> vMPs = mCurrentFrame.mvpMapPoints;

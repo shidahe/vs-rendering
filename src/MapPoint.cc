@@ -21,6 +21,9 @@
 #include "MapPoint.h"
 #include "ORBmatcher.h"
 
+// carv: include modeler to delete points and keyframes
+#include "Modeler/Modeler.h"
+
 #include<mutex>
 
 namespace ORB_SLAM2
@@ -124,6 +127,9 @@ void MapPoint::EraseObservation(KeyFrame* pKF)
                 nObs--;
 
             mObservations.erase(pKF);
+
+            // carv: delete observation from modeler
+            mpMap->mpModeler->AddDeleteObservationEntry(pKF, this);
 
             if(mpRefKF==pKF)
                 mpRefKF=mObservations.begin()->first;

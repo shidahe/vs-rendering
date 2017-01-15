@@ -129,6 +129,7 @@ namespace ORB_SLAM2
         mpLoopCloser->SetLocalMapper(mpLocalMapper);
 
         //CARV: set pointer of modeler
+        mpMap->SetModeler(mpModeler);
         mpTracker->SetModeler(mpModeler);
         mpLocalMapper->SetModeler(mpModeler);
         mpModelDrawer->SetModeler(mpModeler);

@@ -2,15 +2,8 @@
 #ifndef __MODELER_H
 #define __MODELER_H
 
-#include "LoopClosing.h"
-#include "LocalMapping.h"
-#include "Tracking.h"
-#include "KeyFrame.h"
-
 #include <mutex>
 
-#include "Frame.h"
-#include "System.h"
 #include "Modeler/SFMTranscriptInterface_ORBSLAM.h"
 #include "Modeler/SFMTranscriptInterface_Delaunay.h"
 #include "Modeler/ModelDrawer.h"
@@ -39,9 +32,15 @@ namespace ORB_SLAM2 {
         void Run();
 
         void UpdateModelDrawer();
+        bool CheckNewTranscriptEntry();
         bool CheckNewKeyFrameTranscriptEntry();
         bool CheckNewFrameTranscriptEntry();
         void RunRemainder();
+
+        void AddKeyFrameEntry(KeyFrame* pKF);
+        void AddDeletePointEntry(MapPoint* pMP);
+        void AddDeleteObservationEntry(KeyFrame* pKF, MapPoint* pMP);
+        void AddAdjustmentEntry(std::set<KeyFrame*> & sAdjustSet, std::set<MapPoint*> & sMapPoints);
 
         // Thread Synch
         void RequestReset();
@@ -76,10 +75,10 @@ namespace ORB_SLAM2 {
         // This avoid that two transcript entries are created simultaneously in separate threads
         std::mutex mMutexTranscript;
 
+        int mnLastNumLines;
+
         std::list<KeyFrame*> mlpTranscriptKeyFrameQueue;
         std::list<ModelFrame*> mlpTranscriptFrameQueue;
-
-
         void PushKeyFrame(KeyFrame*);
         bool PopKeyFrameIntoTranscript();
         void PushFrame(ModelFrame*);
@@ -91,7 +90,6 @@ namespace ORB_SLAM2 {
         dlovi::FreespaceDelaunayAlgorithm mObjAlgorithm;
         SFMTranscriptInterface_Delaunay mAlgInterface; // An encapsulation of the interface between the transcript and the surface inferring algorithm.
         bool mbFirstKeyFrame;
-
 
         //queue for the keyframes used to texture the model, keyframe mnFrameId
         std::deque<TextureFrame> mdTextureQueue;

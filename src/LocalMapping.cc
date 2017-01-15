@@ -91,7 +91,7 @@ namespace ORB_SLAM2
                 }
 
                 //CARV: add keyframe to transcript queue
-                mpModeler->PushKeyFrame(mpCurrentKeyFrame);
+                mpModeler->AddKeyFrameEntry(mpCurrentKeyFrame);
 
                 mpLoopCloser->InsertKeyFrame(mpCurrentKeyFrame);
 
@@ -196,36 +196,20 @@ namespace ORB_SLAM2
             MapPoint* pMP = *lit;
             if(pMP->isBad())
             {
-                // //CARV
-                // m_transcriptInterface.addPointDeletionEntry(pMP);
-                // m_algInterface.runRemainder();
-
                 lit = mlpRecentAddedMapPoints.erase(lit);
             }
             else if(pMP->GetFoundRatio()<0.25f )
             {
-                // //CARV
-                // m_transcriptInterface.addPointDeletionEntry(pMP);
-                // m_algInterface.runRemainder();
-
                 pMP->SetBadFlag();
                 lit = mlpRecentAddedMapPoints.erase(lit);
             }
             else if(((int)nCurrentKFid-(int)pMP->mnFirstKFid)>=2 && pMP->Observations()<=cnThObs)
             {
-                //CARV
-                // m_transcriptInterface.addPointDeletionEntry(pMP);
-                // m_algInterface.runRemainder();
-
                 pMP->SetBadFlag();
                 lit = mlpRecentAddedMapPoints.erase(lit);
             }
             else if(((int)nCurrentKFid-(int)pMP->mnFirstKFid)>=3)
             {
-                // //CARV
-                // m_transcriptInterface.addPointDeletionEntry(pMP);
-                // m_algInterface.runRemainder();
-
                 lit = mlpRecentAddedMapPoints.erase(lit);
             }
             else

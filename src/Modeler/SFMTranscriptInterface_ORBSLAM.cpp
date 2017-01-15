@@ -3,12 +3,7 @@
 
 #include "Modeler/SFMTranscriptInterface_ORBSLAM.h"
 #include "Modeler/Exception.h"
-#include <sstream>
-#include "MapPoint.h"
-#include "KeyFrame.h"
-#include "Map.h"
 #include "Modeler/Matrix.h"
-// #include "opencv2/opencv.hpp"
 
 using namespace std;
 using namespace dlovi;
@@ -65,7 +60,11 @@ void SFMTranscriptInterface_ORBSLAM::addPointDeletionEntry(MapPoint *p){
         // Set nPointIndex based on argument.
         std::map<MapPoint *, int>::iterator itMapPoint = m_mMapPoint_Index.find(p);
         if(itMapPoint == m_mMapPoint_Index.end()) // The logger has no record of this point?  That's bad.
-            throw dlovi::Exception("Could not compute MapPoint index: no record.");
+        {
+//            cout << "Deleting point: no record of MapPoint index." << endl;
+            return;
+        }
+//            throw dlovi::Exception("Could not compute MapPoint index: no record.");
         int nPointIndex = itMapPoint->second;
 
         ssTmp << "del point: " << nPointIndex;
@@ -110,10 +109,18 @@ void SFMTranscriptInterface_ORBSLAM::addVisibilityRayDeletionEntry(KeyFrame *k, 
         // Set nCamIndex and nPointIndex based on arguments.
         std::map<KeyFrame *, int>::iterator itKeyFrame = m_mKeyFrame_Index.find(k);
         if(itKeyFrame == m_mKeyFrame_Index.end()) // The logger has no record of this KF?  That's bad.
-            throw dlovi::Exception("Could not compute KeyFrame index: no record.");
+        {
+//            cout << "Deleting observation: no record of KeyFrame index." << endl;
+            return;
+        }
+        //            throw dlovi::Exception("Could not compute KeyFrame index: no record.");
         std::map<MapPoint *, int>::iterator itMapPoint = m_mMapPoint_Index.find(p);
         if(itMapPoint == m_mMapPoint_Index.end()) // The logger has no record of this point?  That's bad.
-            throw dlovi::Exception("Could not compute MapPoint index: no record.");
+        {
+//            cout << "Deleting observation: no record of MapPoint index." << endl;
+            return;
+        }
+        //            throw dlovi::Exception("Could not compute MapPoint index: no record.");
 
         int nCamIndex = itKeyFrame->second;
         int nPointIndex = itMapPoint->second;
@@ -123,7 +130,7 @@ void SFMTranscriptInterface_ORBSLAM::addVisibilityRayDeletionEntry(KeyFrame *k, 
     }
     catch(std::exception & ex){
         dlovi::Exception ex2(ex.what()); ex2.tag("SFMTranscriptInterface_ORBSLAM", "addVisibilityRayDeletionEntry"); cerr << ex2.what() << endl; //ex2.raise();
-        assert(0); // TODO: remove me
+        //assert(0); // TODO: remove me
     }
 }
 
@@ -162,9 +169,6 @@ void SFMTranscriptInterface_ORBSLAM::addFirstKeyFrameInsertionEntry(KeyFrame *k)
                 matNewPoint(0) = mWorldPos.at<float>(0);
                 matNewPoint(1) = mWorldPos.at<float>(1);
                 matNewPoint(2) = mWorldPos.at<float>(2);
-
-                if (point->isBad())
-                    continue;
 
                 ssTmp << "new point: [" << matNewPoint(0) << "; " << matNewPoint(1) << "; " << matNewPoint(2) << "]";
                 // Append this point's vis list with special handling.  (Point initialized from epipolar search: > 1 KF, but only 1 KF in our internal structures.)
@@ -236,9 +240,6 @@ void SFMTranscriptInterface_ORBSLAM::addKeyFrameInsertionEntry(KeyFrame *k){
                     matNewPoint(1) = mWorldPos.at<float>(1);
                     matNewPoint(2) = mWorldPos.at<float>(2);
 
-                    if (point->isBad())
-                        continue;
-
                     ssTmp << "new point: [" << matNewPoint(0) << "; " << matNewPoint(1) << "; " << matNewPoint(2)
                           << "]";
                     // Append this point's vis list.  (Point initialized from epipolar search: > 1 KF)
@@ -257,8 +258,6 @@ void SFMTranscriptInterface_ORBSLAM::addKeyFrameInsertionEntry(KeyFrame *k){
                 }
             }
             else{
-                if(point->isBad())
-                    continue;
                 // It's not a new point:
                 sVisListExcludingNewPoints.insert(m_mMapPoint_Index[point]); // To be added after the new points in the following loop
             }
@@ -440,46 +439,48 @@ void SFMTranscriptInterface_ORBSLAM::addFrameInsertionEntry(ModelFrame *pMF){
 }
 
 
-// void SFMTranscriptInterface_ORBSLAM::addBundleAdjustmentEntry(set<KeyFrame *> & sAdjustSet, set<MapPoint *> & sMapPoints){
-//   try{
-//     if(! m_bSuppressBundleAdjustmentLogging){
-//       std::stringstream ssTmp;
-//       int nPointIndex, nCamIndex;
+void SFMTranscriptInterface_ORBSLAM::addBundleAdjustmentEntry(set<KeyFrame *> & sAdjustSet, set<MapPoint *> & sMapPoints){
+    try{
+        if(! m_bSuppressBundleAdjustmentLogging){
+            std::stringstream ssTmp;
+            int nPointIndex, nCamIndex;
 
-//       // TODO: stub
+            // TODO: stub
 
-//       m_SFMTranscript.addLine("bundle {");
+            m_SFMTranscript.addLine("bundle {");
 
-//       // Log point-move entries
-//       for(set<MapPoint *>::iterator it = sMapPoints.begin(); it != sMapPoints.end(); it++){
-//         if(m_mMapPoint_Index.count(*it) == 0)
-//           throw dlovi::Exception("Could not compute MapPoint index: no record.");
-//         nPointIndex = m_mMapPoint_Index[*it];
-//         ssTmp << "move point: " << nPointIndex << ", [" << (*it)->v3WorldPos[0] << "; " << (*it)->v3WorldPos[1] << "; " << (*it)->v3WorldPos[2] << "]";
-//         m_SFMTranscript.addLine(ssTmp.str()); ssTmp.str("");
-//       }
+            // Log point-move entries
+            for(set<MapPoint *>::iterator it = sMapPoints.begin(); it != sMapPoints.end(); it++){
+                if(m_mMapPoint_Index.count(*it) == 0)
+                    throw dlovi::Exception("Could not compute MapPoint index: no record.");
+                nPointIndex = m_mMapPoint_Index[*it];
+                ssTmp << "move point: " << nPointIndex << ", [" << (*it)->GetWorldPos().at<float>(0) << "; " << (*it)->GetWorldPos().at<float>(1)
+                      << "; " << (*it)->GetWorldPos().at<float>(2) << "]";
+                m_SFMTranscript.addLine(ssTmp.str()); ssTmp.str("");
+            }
 
-//       // Log KF-move entries
-//       for(set<KeyFrame *>::iterator it = sAdjustSet.begin(); it != sAdjustSet.end(); it++){
-//         if(m_mKeyFrame_Index.count(*it) == 0)
-//           throw dlovi::Exception("Could not compute KeyFrame index: no record.");
-//         nCamIndex = m_mKeyFrame_Index[*it];
+            // Log KF-move entries
+            for(set<KeyFrame *>::iterator it = sAdjustSet.begin(); it != sAdjustSet.end(); it++){
+                if(m_mKeyFrame_Index.count(*it) == 0)
+                    throw dlovi::Exception("Could not compute KeyFrame index: no record.");
+                nCamIndex = m_mKeyFrame_Index[*it];
 
-//         // TODO: Instead of inverting the whole transform, we should be able to just use the negative translation.
-//         SE3<> se3WfromC = (*it)->se3CfromW.inverse();
-//         ssTmp << "move cam: " << nCamIndex << ", [" << se3WfromC.get_translation()[0] << "; " << se3WfromC.get_translation()[1] << "; "
-//             << se3WfromC.get_translation()[2] << "]";
-//         m_SFMTranscript.addLine(ssTmp.str()); ssTmp.str("");
-//       }
+                // TODO: Instead of inverting the whole transform, we should be able to just use the negative translation.
+                cv::Mat se3WfromC = (*it)->GetPose();
+                se3WfromC = se3WfromC.inv();
+                ssTmp << "move cam: " << nCamIndex << ", [" << se3WfromC.at<float>(0,3) << "; " << se3WfromC.at<float>(1,3) << "; "
+                      << se3WfromC.at<float>(2,3) << "]";
+                m_SFMTranscript.addLine(ssTmp.str()); ssTmp.str("");
+            }
 
-//       // Close this bundle-adjust entry in the transcript
-//       m_SFMTranscript.addLine("}");
-//     }
-//   }
-//   catch(std::exception & ex){
-//     dlovi::Exception ex2(ex.what()); ex2.tag("SFMTranscriptInterface_ORBSLAM", "addBundleAdjustmentEntry"); cerr << ex2.what() << endl; //ex2.raise();
-//   }
-// }
+            // Close this bundle-adjust entry in the transcript
+            m_SFMTranscript.addLine("}");
+        }
+    }
+    catch(std::exception & ex){
+        dlovi::Exception ex2(ex.what()); ex2.tag("SFMTranscriptInterface_ORBSLAM", "addBundleAdjustmentEntry"); cerr << ex2.what() << endl; //ex2.raise();
+    }
+}
 
 void SFMTranscriptInterface_ORBSLAM::writeToFile(const std::string & strFileName) const{
     try{

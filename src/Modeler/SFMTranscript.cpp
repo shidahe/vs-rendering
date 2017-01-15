@@ -585,7 +585,7 @@ namespace dlovi{
 
             try{
                 std::string strCurrentLine = trim(getLine(nLoop));
-                std::cout << strCurrentLine << endl;
+//                std::cout << strCurrentLine << endl;
 
                 // TODO: throw exception if we go past the # of lines
                 while(strCurrentLine.empty())

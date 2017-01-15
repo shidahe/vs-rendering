@@ -7,8 +7,8 @@
 namespace ORB_SLAM2 {
 
     Modeler::Modeler(ModelDrawer* pModelDrawer):
-            mbResetRequested(false), mbFinishRequested(false), mbFinished(true),
-            mpModelDrawer(pModelDrawer), mbFirstKeyFrame(true), mnMaxTextureQueueSize(4), mnMaxFrameQueueSize(1000)
+            mbResetRequested(false), mbFinishRequested(false), mbFinished(true), mpModelDrawer(pModelDrawer),
+            mnLastNumLines(2), mbFirstKeyFrame(true), mnMaxTextureQueueSize(4), mnMaxFrameQueueSize(1000)
     {
         mAlgInterface.setAlgorithmRef(&mObjAlgorithm);
         mAlgInterface.setTranscriptRef(mTranscriptInterface.getTranscriptRef());
@@ -34,17 +34,18 @@ namespace ORB_SLAM2 {
     {
         mbFinished =false;
 
-        while(1)
-        {
-            // Check if there are keyframes in the queue
-            if(CheckNewKeyFrameTranscriptEntry())
-            {
-                if (PopKeyFrameIntoTranscript())
-                {
-                    RunRemainder();
+        while(1) {
+//            // Check if there are keyframes in the queue
+//            if (CheckNewKeyFrameTranscriptEntry()) {
+//
+//                PopKeyFrameIntoTranscript();
+//            }
 
-                    UpdateModelDrawer();
-                }
+            if (CheckNewTranscriptEntry()) {
+
+                RunRemainder();
+
+                UpdateModelDrawer();
             }
 
             ResetIfRequested();
@@ -52,7 +53,7 @@ namespace ORB_SLAM2 {
             if(CheckFinish())
                 break;
 
-            usleep(1000);
+            usleep(100);
         }
 
         SetFinish();
@@ -68,6 +69,13 @@ namespace ORB_SLAM2 {
                 mpModelDrawer->SetUpdatedModel(objModel.first, objModel.second);
                 mpModelDrawer->MarkUpdateDone();
             }
+    }
+
+    bool Modeler::CheckNewTranscriptEntry()
+    {
+        unique_lock<mutex> lock(mMutexTranscript);
+        int numLines = mTranscriptInterface.getTranscriptRef()->numLines();
+        return numLines > mnLastNumLines;
     }
 
     bool Modeler::CheckNewKeyFrameTranscriptEntry()
@@ -140,6 +148,38 @@ namespace ORB_SLAM2 {
         return true;
     }
 
+    void Modeler::AddKeyFrameEntry(KeyFrame* pKF){
+        unique_lock<mutex> lock(mMutexTranscript);
+        // Avoid that a keyframe can be erased while it is being process by this thread
+        pKF->SetNotErase();
+
+        if (mbFirstKeyFrame) {
+            mTranscriptInterface.addFirstKeyFrameInsertionEntry(pKF);
+            mbFirstKeyFrame = false;
+        } else {
+            mTranscriptInterface.addKeyFrameInsertionEntry(pKF);
+        }
+        //AddTexture(pKF);
+
+        pKF->SetErase();
+    }
+
+    void Modeler::AddDeletePointEntry(MapPoint* pMP){
+        unique_lock<mutex> lock(mMutexTranscript);
+        mTranscriptInterface.addPointDeletionEntry(pMP);
+    }
+
+    void Modeler::AddDeleteObservationEntry(KeyFrame *pKF, MapPoint *pMP) {
+        unique_lock<mutex> lock(mMutexTranscript);
+        mTranscriptInterface.addVisibilityRayDeletionEntry(pKF, pMP);
+    }
+
+    void Modeler::AddAdjustmentEntry(std::set<KeyFrame*> & sAdjustSet, std::set<MapPoint*> & sMapPoints){
+        unique_lock<mutex> lock(mMutexTranscript);
+
+    }
+
+
     void Modeler::RequestReset()
     {
         {
@@ -154,7 +194,7 @@ namespace ORB_SLAM2 {
                 if(!mbResetRequested)
                     break;
             }
-            usleep(1000);
+            usleep(100);
         }
     }
 
@@ -168,9 +208,9 @@ namespace ORB_SLAM2 {
                 mlpTranscriptKeyFrameQueue.clear();
                 mlpTranscriptFrameQueue.clear();
             }
-//            mTranscriptInterface.addResetEntry();
+            mTranscriptInterface.addResetEntry();
 //            RunRemainder();
-            mAlgInterface.rewind();
+//            mAlgInterface.rewind();
             {
                 unique_lock<mutex> lock2(mMutexTexture);
                 mmFrameQueue.clear();

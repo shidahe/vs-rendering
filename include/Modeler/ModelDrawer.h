@@ -5,22 +5,17 @@
 #ifndef __MODELDRAWER_H
 #define __MODELDRAWER_H
 
-#include"Map.h"
-#include"MapPoint.h"
-#include"KeyFrame.h"
 #include<pangolin/pangolin.h>
 
 #include<mutex>
 
-#include "Frame.h"
-#include "Tracking.h"
 #include <map>
 #include <list>
 #include <deque>
 #include <vector>
 #include "Modeler/Matrix.h"
 #include "Modeler/Modeler.h"
-
+#include "Modeler/ModelFrame.h"
 
 namespace ORB_SLAM2
 {

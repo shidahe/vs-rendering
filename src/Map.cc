@@ -20,6 +20,9 @@
 
 #include "Map.h"
 
+// carv: include modeler to delete points and keyframes
+#include "Modeler/Modeler.h"
+
 #include<mutex>
 
 namespace ORB_SLAM2
@@ -47,6 +50,9 @@ void Map::EraseMapPoint(MapPoint *pMP)
 {
     unique_lock<mutex> lock(mMutexMap);
     mspMapPoints.erase(pMP);
+
+    //carv: remove point in modeler
+    mpModeler->AddDeletePointEntry(pMP);
 
     // TODO: This only erase the pointer.
     // Delete the MapPoint

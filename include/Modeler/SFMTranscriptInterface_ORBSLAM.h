@@ -34,7 +34,7 @@ public:
     void addFirstFrameInsertionEntry(ModelFrame *pMF);
     void addFrameInsertionEntry(ModelFrame *pMF);
 
-    //void addBundleAdjustmentEntry(std::set<KeyFrame *> & sAdjustSet, std::set<MapPoint *> & sMapPoints);
+    void addBundleAdjustmentEntry(std::set<KeyFrame *> & sAdjustSet, std::set<MapPoint *> & sMapPoints);
     void writeToFile(const std::string & strFileName) const;
     void suppressBundleAdjustmentLogging();
     void unsuppressBundleAdjustmentLogging();

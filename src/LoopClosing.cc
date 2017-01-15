@@ -439,6 +439,9 @@ void LoopClosing::CorrectLoop()
     CorrectedSim3[mpCurrentKF]=mg2oScw;
     cv::Mat Twc = mpCurrentKF->GetPoseInverse();
 
+    //carv: prepare bundle adjust entry
+    std::set<KeyFrame*> sBAKF;
+    std::set<MapPoint*> sBAMP;
 
     {
         // Get Map Mutex
@@ -498,6 +501,9 @@ void LoopClosing::CorrectLoop()
                 pMPi->mnCorrectedByKF = mpCurrentKF->mnId;
                 pMPi->mnCorrectedReference = pKFi->mnId;
                 pMPi->UpdateNormalAndDepth();
+
+                //carv: add MapPoint to set
+                sBAMP.insert(pMPi);
             }
 
             // Update keyframe pose with corrected Sim3. First transform Sim3 to SE3 (scale translation)
@@ -510,6 +516,9 @@ void LoopClosing::CorrectLoop()
             cv::Mat correctedTiw = Converter::toCvSE3(eigR,eigt);
 
             pKFi->SetPose(correctedTiw);
+
+            //carv: add KeyFrame to set
+            sBAKF.insert(pKFi);
 
             // Make sure connections are updated
             pKFi->UpdateConnections();
@@ -565,6 +574,9 @@ void LoopClosing::CorrectLoop()
 
     // Optimize graph
     Optimizer::OptimizeEssentialGraph(mpMap, mpMatchedKF, mpCurrentKF, NonCorrectedSim3, CorrectedSim3, LoopConnections, mbFixScale);
+
+    // carv: log bundle adjust
+    mpMap->mpModeler->AddAdjustmentEntry(sBAKF,sBAMP);
 
     mpMap->InformNewBigChange();
 
@@ -649,6 +661,10 @@ void LoopClosing::RunGlobalBundleAdjustment(unsigned long nLoopKF)
     int idx =  mnFullBAIdx;
     Optimizer::GlobalBundleAdjustemnt(mpMap,10,&mbStopGBA,nLoopKF,false);
 
+    //carv: prepare bundle adjust entry
+    std::set<KeyFrame*> sBAKF;
+    std::set<MapPoint*> sBAMP;
+
     // Update all MapPoints and KeyFrames
     // Local Mapping was active during BA, that means that there might be new keyframes
     // not included in the Global BA and they are not consistent with the updated map.
@@ -697,6 +713,9 @@ void LoopClosing::RunGlobalBundleAdjustment(unsigned long nLoopKF)
                 pKF->mTcwBefGBA = pKF->GetPose();
                 pKF->SetPose(pKF->mTcwGBA);
                 lpKFtoCheck.pop_front();
+
+                //carv: add KeyFrame to set
+                sBAKF.insert(pKF);
             }
 
             // Correct MapPoints
@@ -733,8 +752,14 @@ void LoopClosing::RunGlobalBundleAdjustment(unsigned long nLoopKF)
                     cv::Mat twc = Twc.rowRange(0,3).col(3);
 
                     pMP->SetWorldPos(Rwc*Xc+twc);
+
+                    //carv: add MapPoint to set
+                    sBAMP.insert(pMP);
                 }
-            }            
+            }
+
+            // carv: log bundle adjust
+            mpMap->mpModeler->AddAdjustmentEntry(sBAKF,sBAMP);
 
             mpMap->InformNewBigChange();
 

@@ -76,7 +76,7 @@ namespace ORB_SLAM2
 
         pangolin::CreatePanel("menu").SetBounds(0.0,1.0,0.0,pangolin::Attach::Pix(175));
         pangolin::Var<bool> menuFollowCamera("menu.Follow Camera",true,true);
-        pangolin::Var<bool> menuShowPoints("menu.Show Points",false,true);
+        pangolin::Var<bool> menuShowPoints("menu.Show Points",true,true);
         pangolin::Var<bool> menuShowKeyFrames("menu.Show KeyFrames",false,true);
         pangolin::Var<bool> menuShowGraph("menu.Show Graph",false,true);
         pangolin::Var<bool> menuCameraView("menu.Camera View",true,true);
@@ -192,8 +192,8 @@ namespace ORB_SLAM2
 
             if(menuReset)
             {
-                menuShowGraph = true;
-                menuShowKeyFrames = true;
+                menuShowGraph = false;
+                menuShowKeyFrames = false;
                 menuShowPoints = true;
                 menuLocalizationMode = false;
                 if(bLocalizationMode)
@@ -201,6 +201,10 @@ namespace ORB_SLAM2
                 bLocalizationMode = false;
                 bFollow = true;
                 menuFollowCamera = true;
+                // carv: reset to default
+                menuCameraView = true;
+                menuShowModel = true;
+                menuShowTexture = true;
                 mpSystem->Reset();
                 menuReset = false;
             }

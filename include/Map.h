@@ -33,6 +33,9 @@ namespace ORB_SLAM2 {
 
     class KeyFrame;
 
+    // carv: declaration
+    class Modeler;
+
     class Map {
     public:
         Map();
@@ -70,6 +73,12 @@ namespace ORB_SLAM2 {
 
         // This avoid that two points are created simultaneously in separate threads (id conflict)
         std::mutex mMutexPointCreation;
+
+        // carv: pointer to modeler
+        Modeler* mpModeler;
+        void SetModeler(Modeler* pModeler){
+            mpModeler = pModeler;
+        }
 
     protected:
         std::set<MapPoint *> mspMapPoints;
