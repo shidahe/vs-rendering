@@ -269,24 +269,6 @@ namespace ORB_SLAM2
             cv::undistort(im,imu,mK,mDistCoef);
             mpModeler->AddFrame(mCurrentFrame.mnId, imu);
         }
-        if(mState == OK) {
-            mpModeler->AddTexture(&mCurrentFrame);
-//            vector<MapPoint*> vMPs = mCurrentFrame.mvpMapPoints;
-//            vector<MapPoint*> vPointMP;
-//            vPointMP.reserve(vMPs.size());
-//            for(size_t i=0; i<vMPs.size(); i++) {
-//                MapPoint* pMP=vMPs[i];
-//                if(pMP) {
-//                    if(pMP->Observations() > 2) {
-//                        vPointMP.push_back(pMP);
-//                    }
-//                }
-//            }
-//            if (vPointMP.size() > 0) {
-//                ModelFrame* pMF = new ModelFrame(&mCurrentFrame, vPointMP);
-//                mpModeler->PushFrame(pMF);
-//            }
-        }
 
         return mCurrentFrame.mTcw.clone();
     }

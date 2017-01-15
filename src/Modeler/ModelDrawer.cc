@@ -13,12 +13,12 @@ namespace ORB_SLAM2
     void ModelDrawer::DrawModel()
     {
         // select 4 KFs
-        int numKFs = 1;
+        int numKFs = 4;
         vector<pair<cv::Mat,TextureFrame>> imAndTexFrame = mpModeler->GetTextures(numKFs);
 
         if (imAndTexFrame.size() >= numKFs) {
-//            static unsigned int frameTex[4] = {0, 0, 0, 0};
-            static unsigned int frameTex[1] = {0};
+            static unsigned int frameTex[4] = {0, 0, 0, 0};
+//            static unsigned int frameTex[1] = {0};
             if (!frameTex[0])
                 glGenTextures(numKFs, frameTex);
 
@@ -72,23 +72,50 @@ namespace ORB_SLAM2
 
                 glNormal3d(normal(0), normal(1), normal(2));
 
-                TextureFrame tex = imAndTexFrame[0].second;
-                vector<float> uv0 = tex.GetTexCoordinate(point0(0),point0(1),point0(2),imSize);
-                vector<float> uv1 = tex.GetTexCoordinate(point1(0),point1(1),point1(2),imSize);
-                vector<float> uv2 = tex.GetTexCoordinate(point2(0),point2(1),point2(2),imSize);
+                vector<double> dotProducts;
+                vector<int> indexTex;
+                for (int i = 0; i < numKFs; i++){
+                    cv::Mat texOrient = imAndTexFrame[i].second.GetOrientation();
+                    dlovi::Matrix orientation(3,1);
+                    orientation(0) = texOrient.at<float>(0);
+                    orientation(1) = texOrient.at<float>(1);
+                    orientation(2) = texOrient.at<float>(2);
 
-                if (uv0[0] > 0 && uv0[0] < 1 && uv0[1] > 0 && uv0[1] < 1 &&
-                    uv1[0] > 0 && uv1[0] < 1 && uv1[1] > 0 && uv1[1] < 1 &&
-                    uv2[0] > 0 && uv2[0] < 1 && uv2[1] > 0 && uv2[1] < 1) {
-                    glTexCoord2f(uv0[0], uv0[1]);
-                    glVertex3d(point0(0), point0(1), point0(2));
-
-                    glTexCoord2f(uv1[0], uv1[1]);
-                    glVertex3d(point1(0), point1(1), point1(2));
-
-                    glTexCoord2f(uv2[0], uv2[1]);
-                    glVertex3d(point2(0), point2(1), point2(2));
+                    dotProducts.push_back(normal.dot(orientation));
+                    indexTex.push_back(i);
                 }
+
+                sort( begin(indexTex), end(indexTex),
+                      [&](int i1, int i2) { return dotProducts[i1] > dotProducts[i2]; } );
+
+                for (int i = 0; i < numKFs; i++){
+                    int indexCurr = indexTex[i];
+
+                    TextureFrame tex = imAndTexFrame[indexCurr].second;
+                    vector<float> uv0 = tex.GetTexCoordinate(point0(0),point0(1),point0(2),imSize);
+                    vector<float> uv1 = tex.GetTexCoordinate(point1(0),point1(1),point1(2),imSize);
+                    vector<float> uv2 = tex.GetTexCoordinate(point2(0),point2(1),point2(2),imSize);
+
+                    if (uv0[0] > 0 && uv0[0] < 1 && uv0[1] > 0 && uv0[1] < 1 &&
+                        uv1[0] > 0 && uv1[0] < 1 && uv1[1] > 0 && uv1[1] < 1 &&
+                        uv2[0] > 0 && uv2[0] < 1 && uv2[1] > 0 && uv2[1] < 1) {
+
+                        glBindTexture(GL_TEXTURE_2D, frameTex[indexCurr]);
+
+                        glTexCoord2f(uv0[0], uv0[1]);
+                        glVertex3d(point0(0), point0(1), point0(2));
+
+                        glTexCoord2f(uv1[0], uv1[1]);
+                        glVertex3d(point1(0), point1(1), point1(2));
+
+                        glTexCoord2f(uv2[0], uv2[1]);
+                        glVertex3d(point2(0), point2(1), point2(2));
+
+                        break;
+                    }
+
+                }
+
             }
             glEnd();
 

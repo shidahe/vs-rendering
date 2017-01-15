@@ -25,9 +25,12 @@ namespace ORB_SLAM2 {
 
         vector<float> GetTexCoordinate(float x, float y, float z);
 
+        cv::Mat GetOrientation();
+
         long unsigned int mFrameID;
         cv::Mat mRcw;
         cv::Mat mtcw;
+        cv::Mat mTwc;
 
         float mfx, mfy, mcx, mcy;
         float mnMinX;

@@ -33,8 +33,6 @@ namespace ORB_SLAM2 {
 
         void UpdateModelDrawer();
         bool CheckNewTranscriptEntry();
-        bool CheckNewKeyFrameTranscriptEntry();
-        bool CheckNewFrameTranscriptEntry();
         void RunRemainder();
 
         void AddKeyFrameEntry(KeyFrame* pKF);
@@ -76,13 +74,6 @@ namespace ORB_SLAM2 {
         std::mutex mMutexTranscript;
 
         int mnLastNumLines;
-
-        std::list<KeyFrame*> mlpTranscriptKeyFrameQueue;
-        std::list<ModelFrame*> mlpTranscriptFrameQueue;
-        void PushKeyFrame(KeyFrame*);
-        bool PopKeyFrameIntoTranscript();
-        void PushFrame(ModelFrame*);
-        bool PopFrameIntoTranscript();
 
         //CARV interface
         SFMTranscriptInterface_ORBSLAM mTranscriptInterface; // An interface to a transcript / log of the map's work.

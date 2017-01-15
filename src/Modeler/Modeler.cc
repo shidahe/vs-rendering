@@ -35,11 +35,6 @@ namespace ORB_SLAM2 {
         mbFinished =false;
 
         while(1) {
-//            // Check if there are keyframes in the queue
-//            if (CheckNewKeyFrameTranscriptEntry()) {
-//
-//                PopKeyFrameIntoTranscript();
-//            }
 
             if (CheckNewTranscriptEntry()) {
 
@@ -78,74 +73,9 @@ namespace ORB_SLAM2 {
         return numLines > mnLastNumLines;
     }
 
-    bool Modeler::CheckNewKeyFrameTranscriptEntry()
-    {
-        unique_lock<mutex> lock(mMutexTranscript);
-        return(!mlpTranscriptKeyFrameQueue.empty());
-    }
-
-    bool Modeler::CheckNewFrameTranscriptEntry()
-    {
-        unique_lock<mutex> lock(mMutexTranscript);
-        return(!mlpTranscriptFrameQueue.empty());
-    }
-
     void Modeler::RunRemainder()
     {
         mAlgInterface.runRemainder();
-    }
-
-    void Modeler::PushKeyFrame(KeyFrame* pKF)
-    {
-        unique_lock<mutex> lock(mMutexTranscript);
-        if(pKF->mnId!=0)
-            mlpTranscriptKeyFrameQueue.push_back(pKF);
-    }
-
-    bool Modeler::PopKeyFrameIntoTranscript()
-    {
-        unique_lock<mutex> lock(mMutexTranscript);
-        KeyFrame* pKF = mlpTranscriptKeyFrameQueue.front();
-        mlpTranscriptKeyFrameQueue.pop_front();
-        // Avoid that a keyframe can be erased while it is being process by this thread
-        pKF->SetNotErase();
-
-        if (mbFirstKeyFrame) {
-            mTranscriptInterface.addFirstKeyFrameInsertionEntry(pKF);
-            mbFirstKeyFrame = false;
-        } else {
-            mTranscriptInterface.addKeyFrameInsertionEntry(pKF);
-        }
-        //AddTexture(pKF);
-
-        pKF->SetErase();
-        return true;
-    }
-
-    void Modeler::PushFrame(ModelFrame* pMF)
-    {
-        unique_lock<mutex> lock(mMutexTranscript);
-        if(pMF->mFrameID!=0)
-            mlpTranscriptFrameQueue.push_back(pMF);
-    }
-
-    bool Modeler::PopFrameIntoTranscript()
-    {
-        unique_lock<mutex> lock(mMutexTranscript);
-        ModelFrame* pMF = mlpTranscriptFrameQueue.front();
-        mlpTranscriptFrameQueue.pop_front();
-
-        if (pMF->mTcw.empty())
-            return false;
-
-        if (mbFirstKeyFrame) {
-            mTranscriptInterface.addFirstFrameInsertionEntry(pMF);
-            mbFirstKeyFrame = false;
-        } else {
-            mTranscriptInterface.addFrameInsertionEntry(pMF);
-        }
-
-        return true;
     }
 
     void Modeler::AddKeyFrameEntry(KeyFrame* pKF){
@@ -205,18 +135,13 @@ namespace ORB_SLAM2 {
         {
             {
                 unique_lock<mutex> lock2(mMutexTranscript);
-                mlpTranscriptKeyFrameQueue.clear();
-                mlpTranscriptFrameQueue.clear();
-            }
-            mTranscriptInterface.addResetEntry();
+                mTranscriptInterface.addResetEntry();
 //            RunRemainder();
 //            mAlgInterface.rewind();
+            }
             {
                 unique_lock<mutex> lock2(mMutexTexture);
                 mmFrameQueue.clear();
-            }
-            {
-                unique_lock<mutex> lock(mMutexTexture);
                 mdTextureQueue.clear();
             }
             mbFirstKeyFrame = true;

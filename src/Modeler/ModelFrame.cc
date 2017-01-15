@@ -11,6 +11,7 @@ namespace ORB_SLAM2 {
         // GetPose instead GetPoseInverse, seems camera position need to be inversed
         mRcw = pKF->GetPose().rowRange(0, 3).colRange(0, 3);
         mtcw = pKF->GetPose().rowRange(0, 3).col(3);
+        mTwc = pKF->GetPoseInverse();
 
         mfx = pKF->fx;
         mfy = pKF->fy;
@@ -27,6 +28,7 @@ namespace ORB_SLAM2 {
         // GetPose instead GetPoseInverse, seems camera position need to be inversed
         mRcw = pF->mTcw.rowRange(0, 3).colRange(0, 3);
         mtcw = pF->mTcw.rowRange(0, 3).col(3);
+        mTwc = pF->mTcw.inv();
 
         mfx = pF->fx;
         mfy = pF->fy;
@@ -36,6 +38,19 @@ namespace ORB_SLAM2 {
         mnMinX = pF->mnMinX;
         mnMaxY = pF->mnMaxY;
         mnMinY = pF->mnMinY;
+    }
+
+    cv::Mat TextureFrame::GetOrientation() {
+        const cv::Mat AxisZ = (cv::Mat_<float>(3, 1) << 0.0, 0.0, 1.0);
+
+        // 3D in world coordinates
+        const cv::Mat Rwc = mTwc.rowRange(0, 3).colRange(0, 3);
+        const cv::Mat twc = mTwc.rowRange(0, 3).col(3);
+
+        cv::Mat Orientation = Rwc * AxisZ + twc;
+        Orientation = Orientation * (1 / norm(Orientation));
+
+        return Orientation;
     }
 
     vector<float> TextureFrame::GetTexCoordinate(float x, float y, float z, cv::Size s) {
