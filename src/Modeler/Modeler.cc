@@ -106,7 +106,7 @@ namespace ORB_SLAM2 {
 
     void Modeler::AddAdjustmentEntry(std::set<KeyFrame*> & sAdjustSet, std::set<MapPoint*> & sMapPoints){
         unique_lock<mutex> lock(mMutexTranscript);
-
+        mTranscriptInterface.addBundleAdjustmentEntry(sAdjustSet, sMapPoints);
     }
 
 

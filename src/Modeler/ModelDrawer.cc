@@ -13,7 +13,7 @@ namespace ORB_SLAM2
     void ModelDrawer::DrawModel()
     {
         // select 4 KFs
-        int numKFs = 4;
+        int numKFs = 1;
         vector<pair<cv::Mat,TextureFrame>> imAndTexFrame = mpModeler->GetTextures(numKFs);
 
         if (imAndTexFrame.size() >= numKFs) {
