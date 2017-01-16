@@ -92,9 +92,9 @@ namespace ORB_SLAM2
                     int indexCurr = indexTex[i];
 
                     TextureFrame tex = imAndTexFrame[indexCurr].second;
-                    vector<float> uv0 = tex.GetTexCoordinate(point0(0),point0(1),point0(2),imSize);
-                    vector<float> uv1 = tex.GetTexCoordinate(point1(0),point1(1),point1(2),imSize);
-                    vector<float> uv2 = tex.GetTexCoordinate(point2(0),point2(1),point2(2),imSize);
+                    vector<float> uv0 = tex.GetTexCoordinate(point0(0),point0(1),point0(2));
+                    vector<float> uv1 = tex.GetTexCoordinate(point1(0),point1(1),point1(2));
+                    vector<float> uv2 = tex.GetTexCoordinate(point2(0),point2(1),point2(2));
 
                     if (uv0[0] > 0 && uv0[0] < 1 && uv0[1] > 0 && uv0[1] < 1 &&
                         uv1[0] > 0 && uv1[0] < 1 && uv1[1] > 0 && uv1[1] < 1 &&

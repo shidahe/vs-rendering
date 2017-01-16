@@ -41,7 +41,7 @@ namespace ORB_SLAM2 {
     }
 
     cv::Mat TextureFrame::GetOrientation() {
-        const cv::Mat AxisZ = (cv::Mat_<float>(3, 1) << 0.0, 0.0, 1.0);
+        const cv::Mat AxisZ = (cv::Mat_<float>(3, 1) << 0.0, 0.0, -1.0);
 
         // 3D in world coordinates
         const cv::Mat Rwc = mTwc.rowRange(0, 3).colRange(0, 3);
