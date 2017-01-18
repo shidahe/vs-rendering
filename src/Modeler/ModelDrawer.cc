@@ -24,8 +24,6 @@ namespace ORB_SLAM2
 
             cv::Size imSize = imAndTexFrame[0].first.size();
 
-            cv::imshow("image in drawer", imAndTexFrame[0].first);
-
             for (int i = 0; i < numKFs; i++) {
                 glBindTexture(GL_TEXTURE_2D, frameTex[i]);
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);

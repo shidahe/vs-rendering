@@ -48,7 +48,7 @@ namespace ORB_SLAM2 {
             }
             else {
 
-//                AddPointsOnLineSegments();
+                AddPointsOnLineSegments();
             }
 
             ResetIfRequested();
@@ -67,39 +67,43 @@ namespace ORB_SLAM2 {
     }
 
     void Modeler::AddPointsOnLineSegments(){
-        while(mdToLinesQueue.size() > 0){
-            KeyFrame* pKF;
-            {
-                unique_lock<mutex> lock(mMutexToLines);
+        KeyFrame* pKF;
+        {
+            unique_lock<mutex> lock(mMutexToLines);
+            if(mdToLinesQueue.size() > 0) {
                 pKF = mdToLinesQueue.front();
                 mdToLinesQueue.pop_front();
-            }
-
-            if(pKF->isBad())
+            } else {
                 return;
-
-            // Avoid that a keyframe can be erased while it is being process by this thread
-            pKF->SetNotErase();
-
-            cv::Mat im;
-            {
-                unique_lock<mutex> lock(mMutexFrame);
-                im = mmFrameQueue[pKF->mnFrameId].clone();
             }
-            cv::Mat imGray = im;
-            if (imGray.channels() > 1)
-                cv::cvtColor(imGray,imGray,CV_RGB2GRAY);
+        }
 
-            cv::imshow("imGray",imGray);
+        if(pKF->isBad())
+            return;
 
-            vector<LS> lines = DetectLineSegments(imGray);
+        // Avoid that a keyframe can be erased while it is being process by this thread
+        pKF->SetNotErase();
 
-            for(size_t indexLines = 0; indexLines < lines.size(); indexLines++){
-                std::cout << "Lines: (" << lines[indexLines].sx << "," << lines[indexLines].sx << ") ("
-                          << lines[indexLines].ex << "," << lines[indexLines].ey << ")" << std::endl;
-            }
+        cv::Mat im;
+        {
+            unique_lock<mutex> lock(mMutexFrame);
+            im = mmFrameQueue[pKF->mnFrameId].clone();
+        }
+        cv::Mat imGray = im.clone();
+        if (imGray.channels() > 1)
+            cv::cvtColor(imGray,imGray,CV_RGB2GRAY);
 
-            //calculate distance map of lines
+        cv::imwrite("imfile",im);
+        cv::imshow("im",im);
+
+        vector<LS> lines = DetectLineSegments(imGray);
+
+        for(size_t indexLines = 0; indexLines < lines.size(); indexLines++){
+            std::cout << "Lines: (" << lines[indexLines].sx << "," << lines[indexLines].sx << ") ("
+                      << lines[indexLines].ex << "," << lines[indexLines].ey << ")" << std::endl;
+        }
+
+        //calculate distance map of lines
 //            cv::Mat binImage (im.size(), CV_8U);
 //            for (size_t indexLines = 0; indexLines < lines.size(); indexLines++){
 //                //assign pixels on lines to 1
@@ -111,17 +115,16 @@ namespace ORB_SLAM2 {
 
 
 
-            //project points that were newly added when the keyframe entry was added, to the distance map
-            //find points that are not bad from keyframes that are not bad
-            //which are on the lines (supporting the 3d position calculation)
-            //densify by add points from lines
+        //project points that were newly added when the keyframe entry was added, to the distance map
+        //find points that are not bad from keyframes that are not bad
+        //which are on the lines (supporting the 3d position calculation)
+        //densify by add points from lines
 
-            // maybe: remove line points from a keyframe if the keyframe is deleted
-            // maybe: remove line points if too many supporting points are deleted
+        // maybe: remove line points from a keyframe if the keyframe is deleted
+        // maybe: remove line points if too many supporting points are deleted
 
 
-            pKF->SetErase();
-        }
+        pKF->SetErase();
 
     }
 
@@ -231,6 +234,7 @@ namespace ORB_SLAM2 {
             {
                 unique_lock<mutex> lock2(mMutexTranscript);
                 mTranscriptInterface.addResetEntry();
+                //TODO: fix crash when initialize again after reset
 //            RunRemainder();
 //            mAlgInterface.rewind();
             }
