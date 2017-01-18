@@ -9,6 +9,8 @@
 #include "Modeler/ModelDrawer.h"
 #include "Modeler/ModelFrame.h"
 
+#include "Thirdparty/EDLines/LS.h"
+
 namespace ORB_SLAM2 {
 
     class Tracking;
@@ -35,6 +37,10 @@ namespace ORB_SLAM2 {
         bool CheckNewTranscriptEntry();
         void RunRemainder();
 
+        void AddPointsOnLineSegments();
+        void DetectLineSegmentsLater(KeyFrame* pKF);
+        vector<LS> DetectLineSegments(cv::Mat im);
+
         void AddKeyFrameEntry(KeyFrame* pKF);
         void AddDeletePointEntry(MapPoint* pMP);
         void AddDeleteObservationEntry(KeyFrame* pKF, MapPoint* pMP);
@@ -45,10 +51,9 @@ namespace ORB_SLAM2 {
         void RequestFinish();
         bool isFinished();
 
-
         void AddTexture(KeyFrame* pKF);
         void AddTexture(Frame* pF);
-        void AddFrame(const long unsigned int &frameID, const cv::Mat &im);
+        void AddFrameImage(const long unsigned int &frameID, const cv::Mat &im);
 
         // get last n keyframes for texturing
         vector<pair<cv::Mat,TextureFrame>> GetTextures(int n);
@@ -73,6 +78,7 @@ namespace ORB_SLAM2 {
         // This avoid that two transcript entries are created simultaneously in separate threads
         std::mutex mMutexTranscript;
 
+        //number of lines in transcript last time checked
         int mnLastNumLines;
 
         //CARV interface
@@ -91,6 +97,11 @@ namespace ORB_SLAM2 {
         std::map<long unsigned int, cv::Mat> mmFrameQueue;
         size_t mnMaxFrameQueueSize;
         std::mutex mMutexFrame;
+
+        //queue for the texture frames used to detect lines
+        std::deque<KeyFrame*> mdToLinesQueue;
+        size_t mnMaxToLinesQueueSize;
+        std::mutex mMutexToLines;
 
     };
 }

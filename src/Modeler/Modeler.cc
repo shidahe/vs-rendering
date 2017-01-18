@@ -4,6 +4,9 @@
 
 #include "Modeler/Modeler.h"
 
+/// Function prototype for DetectEdgesByED exported by EDLinesLib.a
+LS *DetectLinesByED(unsigned char *srcImg, int width, int height, int *pNoLines);
+
 namespace ORB_SLAM2 {
 
     Modeler::Modeler(ModelDrawer* pModelDrawer):
@@ -45,7 +48,7 @@ namespace ORB_SLAM2 {
             }
             else {
 
-                DetectAddPointsOnLineSegments();
+//                AddPointsOnLineSegments();
             }
 
             ResetIfRequested();
@@ -59,14 +62,18 @@ namespace ORB_SLAM2 {
         SetFinish();
 
         //CARV
-        unique_lock<mutex> lock2(mMutexTranscript);
+        unique_lock<mutex> lock(mMutexTranscript);
         mTranscriptInterface.writeToFile("sfmtranscript_orbslam.txt");
     }
 
-    void Modeler::DetectAddPointsOnLineSegments(){
+    void Modeler::AddPointsOnLineSegments(){
         while(mdToLinesQueue.size() > 0){
-            KeyFrame* pKF = mdToLinesQueue.front();
-            mdToLinesQueue.pop_front();
+            KeyFrame* pKF;
+            {
+                unique_lock<mutex> lock(mMutexToLines);
+                pKF = mdToLinesQueue.front();
+                mdToLinesQueue.pop_front();
+            }
 
             if(pKF->isBad())
                 return;
@@ -74,9 +81,36 @@ namespace ORB_SLAM2 {
             // Avoid that a keyframe can be erased while it is being process by this thread
             pKF->SetNotErase();
 
-            vector<cv::Point> lines = DetectLineSegments(mmFrameQueue[pKF->mnFrameId]);
+            cv::Mat im;
+            {
+                unique_lock<mutex> lock(mMutexFrame);
+                im = mmFrameQueue[pKF->mnFrameId].clone();
+            }
+            cv::Mat imGray = im;
+            if (imGray.channels() > 1)
+                cv::cvtColor(imGray,imGray,CV_RGB2GRAY);
+
+            cv::imshow("imGray",imGray);
+
+            vector<LS> lines = DetectLineSegments(imGray);
+
+            for(size_t indexLines = 0; indexLines < lines.size(); indexLines++){
+                std::cout << "Lines: (" << lines[indexLines].sx << "," << lines[indexLines].sx << ") ("
+                          << lines[indexLines].ex << "," << lines[indexLines].ey << ")" << std::endl;
+            }
 
             //calculate distance map of lines
+//            cv::Mat binImage (im.size(), CV_8U);
+//            for (size_t indexLines = 0; indexLines < lines.size(); indexLines++){
+//                //assign pixels on lines to 1
+//                cv::Point2d start(lines[indexLines].sx, lines[indexLines].sy);
+//                cv::Point2d end(lines[indexLines].ex, lines[indexLines].ey);
+//
+//
+//            }
+
+
+
             //project points that were newly added when the keyframe entry was added, to the distance map
             //find points that are not bad from keyframes that are not bad
             //which are on the lines (supporting the 3d position calculation)
@@ -91,23 +125,40 @@ namespace ORB_SLAM2 {
 
     }
 
-    vector<cv::Point> DetectLinesSegments(cv::Mat im){
+    vector<LS> Modeler::DetectLineSegments(cv::Mat im) {
+        int width, height;
+        unsigned char *srcImg;
+        int noLines;
 
+        srcImg = im.data;
+        width = im.cols;
+        height = im.rows;
+
+        LS *lines = DetectLinesByED(srcImg, width, height, &noLines);
+
+        vector<LS> vLines(lines, lines + noLines);
+
+        return vLines;
     }
 
-    void Modeler::UpdateModelDrawer(){
-            if(mpModelDrawer->UpdateRequested() && ! mpModelDrawer->UpdateDone()){
-                std::pair<std::vector<dlovi::Matrix>, std::list<dlovi::Matrix> > objModel = mAlgInterface.getCurrentModel();
-                mpModelDrawer->SetUpdatedModel(objModel.first, objModel.second);
-                mpModelDrawer->MarkUpdateDone();
-            }
+    void Modeler::UpdateModelDrawer() {
+        if(mpModelDrawer->UpdateRequested() && ! mpModelDrawer->UpdateDone()) {
+            std::pair<std::vector<dlovi::Matrix>, std::list<dlovi::Matrix> > objModel = mAlgInterface.getCurrentModel();
+            mpModelDrawer->SetUpdatedModel(objModel.first, objModel.second);
+            mpModelDrawer->MarkUpdateDone();
+        }
     }
 
     bool Modeler::CheckNewTranscriptEntry()
     {
         unique_lock<mutex> lock(mMutexTranscript);
         int numLines = mTranscriptInterface.getTranscriptRef()->numLines();
-        return numLines > mnLastNumLines;
+        if (numLines > mnLastNumLines) {
+            mnLastNumLines = numLines;
+            return true;
+        } else {
+            return false;
+        }
     }
 
     void Modeler::RunRemainder()
@@ -185,8 +236,15 @@ namespace ORB_SLAM2 {
             }
             {
                 unique_lock<mutex> lock2(mMutexTexture);
-                mmFrameQueue.clear();
                 mdTextureQueue.clear();
+            }
+            {
+                unique_lock<mutex> lock2(mMutexFrame);
+                mmFrameQueue.clear();
+            }
+            {
+                unique_lock<mutex> lock2(mMutexToLines);
+                mdToLinesQueue.clear();
             }
             mbFirstKeyFrame = true;
 

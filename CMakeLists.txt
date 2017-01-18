@@ -49,13 +49,7 @@ find_package(Boost REQUIRED)
 include_directories(${Boost_INCLUDE_DIR})
 link_directories(${Boost_LIBRARY_DIR})
 # BLAS and LAPACK
-#set(BLAS_DIR /path/to/blas)
-#find_package(BLAS REQUIRED)
-#include_directories(${BLAS_INCLUDE_DIR})
-#link_directories(${BLAS_LIBRARY_DIR})
-#set(LAPACK_DIR /path/to/lapack)
 find_package(LAPACK REQUIRED)
-#include_directories(${LAPACK_INCLUDE_DIR})
 link_directories(${LAPACK_LIBRARY_DIR})
 
 
@@ -110,6 +104,9 @@ target_link_libraries(${PROJECT_NAME}
         ${Pangolin_LIBRARIES}
         ${PROJECT_SOURCE_DIR}/Thirdparty/DBoW2/lib/libDBoW2.so
         ${PROJECT_SOURCE_DIR}/Thirdparty/g2o/lib/libg2o.so
+        ${PROJECT_SOURCE_DIR}/Thirdparty/EDLines/EDLinesLib.a
+#        ${PROJECT_SOURCE_DIR}/Thirdparty/EDLines/libopencv_core.so.2.4.5
+#        ${PROJECT_SOURCE_DIR}/Thirdparty/EDLines/libopencv_imgproc.so.2.4.5
         lapack blas
         )
 
