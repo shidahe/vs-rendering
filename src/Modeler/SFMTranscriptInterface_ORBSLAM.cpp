@@ -147,7 +147,6 @@ void SFMTranscriptInterface_ORBSLAM::addFirstKeyFrameInsertionEntry(KeyFrame *k)
         // // TODO: Instead of inverting the whole transform, we should be able to just use the negative translation.
         // GetPoseInverse, seems camera position need to be inversed
         cv::Mat se3WfromC = k->GetPoseInverse();
-//        se3WfromC = se3WfromC.inv();
         matNewCam(0) = se3WfromC.at<float>(0,3);
         matNewCam(1) = se3WfromC.at<float>(1,3);
         matNewCam(2) = se3WfromC.at<float>(2,3);
@@ -204,7 +203,6 @@ void SFMTranscriptInterface_ORBSLAM::addKeyFrameInsertionEntry(KeyFrame *k){
         // TODO: Instead of inverting the whole transform, we should be able to just use the negative translation.
         // GetPoseInverse, seems camera position need to be inversed
         cv::Mat se3WfromC = k->GetPoseInverse();
-//        se3WfromC = se3WfromC.inv();
         matNewCam(0) = se3WfromC.at<float>(0,3);
         matNewCam(1) = se3WfromC.at<float>(1,3);
         matNewCam(2) = se3WfromC.at<float>(2,3);
@@ -215,28 +213,6 @@ void SFMTranscriptInterface_ORBSLAM::addKeyFrameInsertionEntry(KeyFrame *k){
         nCamIndex = m_mKeyFrame_Index.size();
         m_mKeyFrame_Index[k] = nCamIndex;
 
-        // add corner points at median depth for visualization
-        cv::Mat Tcw = k->GetPose();
-        float medianDepth = k->ComputeSceneMedianDepth(2);
-        std::vector<cv::Mat> cornerPoints;
-        cv::Mat cp1 = (cv::Mat_<float>(3, 1) << 0.0, 0.0, medianDepth);
-        cv::Mat cp2 = (cv::Mat_<float>(3, 1) << 1.0, 0.0, medianDepth);
-        cv::Mat cp3 = (cv::Mat_<float>(3, 1) << 0.0, 1.0, medianDepth);
-        cv::Mat cp4 = (cv::Mat_<float>(3, 1) << 1.0, 1.0, medianDepth);
-        cornerPoints.push_back(cp1);
-        cornerPoints.push_back(cp2);
-        cornerPoints.push_back(cp3);
-        cornerPoints.push_back(cp4);
-
-        for(int i = 0; i < 4; i++){
-            const cv::Mat Rcw = Tcw.rowRange(0, 3).colRange(0, 3);
-            const cv::Mat tcw = Tcw.rowRange(0, 3).col(3);
-            cv::Mat Pw = Rcw * cornerPoints[i] + tcw;
-
-            ssTmp << "new point: [" << Pw.at<float>(0) << "; " << Pw.at<float>(1) << "; " << Pw.at<float>(2) << "]";
-            m_SFMTranscript.addLine(ssTmp.str()); ssTmp.str("");
-        }
-
         // Process new points and visibility information in this KF
         std::set<int> sVisListExcludingNewPoints;
         std::set<MapPoint*> mvpMapPoints = k->GetMapPoints();
@@ -245,7 +221,7 @@ void SFMTranscriptInterface_ORBSLAM::addKeyFrameInsertionEntry(KeyFrame *k){
 
             if(m_mMapPoint_Index.count(point) == 0){
                 // add confident points
-                if (point->Observations() < 8)
+                if (point->Observations() < 5)
                     continue;
 
                 // check if it has valid observation first
@@ -259,15 +235,16 @@ void SFMTranscriptInterface_ORBSLAM::addKeyFrameInsertionEntry(KeyFrame *k){
                     }
                 }
 
-                if (hasObservation) {
-                    // It's a new point:
-                    cv::Mat mWorldPos = point->GetWorldPos();
-                    matNewPoint(0) = mWorldPos.at<float>(0);
-                    matNewPoint(1) = mWorldPos.at<float>(1);
-                    matNewPoint(2) = mWorldPos.at<float>(2);
+                // It's a new point:
+                cv::Mat mWorldPos = point->GetWorldPos();
+                matNewPoint(0) = mWorldPos.at<float>(0);
+                matNewPoint(1) = mWorldPos.at<float>(1);
+                matNewPoint(2) = mWorldPos.at<float>(2);
 
-                    ssTmp << "new point: [" << matNewPoint(0) << "; " << matNewPoint(1) << "; " << matNewPoint(2)
-                          << "]";
+                ssTmp << "new point: [" << matNewPoint(0) << "; " << matNewPoint(1) << "; " << matNewPoint(2)
+                      << "]";
+
+                if (hasObservation) {
                     // Append this point's vis list.  (Point initialized from epipolar search: > 1 KF)
                     for (std::map<KeyFrame *, size_t>::iterator it2 = mObservations.begin();
                          it2 != mObservations.end(); it2++) {
@@ -275,13 +252,15 @@ void SFMTranscriptInterface_ORBSLAM::addKeyFrameInsertionEntry(KeyFrame *k){
                             ssTmp << ", " << m_mKeyFrame_Index[it2->first];
                         }
                     }
-
-                    m_SFMTranscript.addLine(ssTmp.str()); ssTmp.str("");
-
-                    // Add a record of the new point to internal map.
-                    nPointIndex = m_mMapPoint_Index.size();
-                    m_mMapPoint_Index[point] = nPointIndex;
+                } else {
+                    ssTmp << ", " << nCamIndex;
                 }
+
+                m_SFMTranscript.addLine(ssTmp.str()); ssTmp.str("");
+
+                // Add a record of the new point to internal map.
+                nPointIndex = m_mMapPoint_Index.size();
+                m_mMapPoint_Index[point] = nPointIndex;
             }
             else{
                 // It's not a new point:

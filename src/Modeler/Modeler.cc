@@ -8,7 +8,8 @@ namespace ORB_SLAM2 {
 
     Modeler::Modeler(ModelDrawer* pModelDrawer):
             mbResetRequested(false), mbFinishRequested(false), mbFinished(true), mpModelDrawer(pModelDrawer),
-            mnLastNumLines(2), mbFirstKeyFrame(true), mnMaxTextureQueueSize(4), mnMaxFrameQueueSize(1000)
+            mnLastNumLines(2), mbFirstKeyFrame(true), mnMaxTextureQueueSize(4), mnMaxFrameQueueSize(1000),
+            mnMaxToLinesQueueSize(100)
     {
         mAlgInterface.setAlgorithmRef(&mObjAlgorithm);
         mAlgInterface.setTranscriptRef(mTranscriptInterface.getTranscriptRef());
@@ -42,6 +43,10 @@ namespace ORB_SLAM2 {
 
                 UpdateModelDrawer();
             }
+            else {
+
+                DetectAddPointsOnLineSegments();
+            }
 
             ResetIfRequested();
 
@@ -56,6 +61,38 @@ namespace ORB_SLAM2 {
         //CARV
         unique_lock<mutex> lock2(mMutexTranscript);
         mTranscriptInterface.writeToFile("sfmtranscript_orbslam.txt");
+    }
+
+    void Modeler::DetectAddPointsOnLineSegments(){
+        while(mdToLinesQueue.size() > 0){
+            KeyFrame* pKF = mdToLinesQueue.front();
+            mdToLinesQueue.pop_front();
+
+            if(pKF->isBad())
+                return;
+
+            // Avoid that a keyframe can be erased while it is being process by this thread
+            pKF->SetNotErase();
+
+            vector<cv::Point> lines = DetectLineSegments(mmFrameQueue[pKF->mnFrameId]);
+
+            //calculate distance map of lines
+            //project points that were newly added when the keyframe entry was added, to the distance map
+            //find points that are not bad from keyframes that are not bad
+            //which are on the lines (supporting the 3d position calculation)
+            //densify by add points from lines
+
+            // maybe: remove line points from a keyframe if the keyframe is deleted
+            // maybe: remove line points if too many supporting points are deleted
+
+
+            pKF->SetErase();
+        }
+
+    }
+
+    vector<cv::Point> DetectLinesSegments(cv::Mat im){
+
     }
 
     void Modeler::UpdateModelDrawer(){
@@ -80,6 +117,10 @@ namespace ORB_SLAM2 {
 
     void Modeler::AddKeyFrameEntry(KeyFrame* pKF){
         unique_lock<mutex> lock(mMutexTranscript);
+
+        if(pKF->isBad())
+            return;
+
         // Avoid that a keyframe can be erased while it is being process by this thread
         pKF->SetNotErase();
 
@@ -89,7 +130,10 @@ namespace ORB_SLAM2 {
         } else {
             mTranscriptInterface.addKeyFrameInsertionEntry(pKF);
         }
-        //AddTexture(pKF);
+
+        AddTexture(pKF);
+
+        DetectLineSegmentsLater(pKF);
 
         pKF->SetErase();
     }
@@ -175,18 +219,24 @@ namespace ORB_SLAM2 {
         return mbFinished;
     }
 
+    void Modeler::DetectLineSegmentsLater(KeyFrame* pKF)
+    {
+        unique_lock<mutex> lock(mMutexToLines);
+        if (mdToLinesQueue.size() >= mnMaxToLinesQueueSize) {
+            mdToLinesQueue.pop_front();
+        }
+        mdToLinesQueue.push_back(pKF);
+    }
+
     void Modeler::AddTexture(KeyFrame* pKF)
     {
         unique_lock<mutex> lock(mMutexTexture);
 
         TextureFrame texFrame(pKF);
-
         if (mdTextureQueue.size() >= mnMaxTextureQueueSize) {
             mdTextureQueue.pop_front();
         }
-
         mdTextureQueue.push_back(texFrame);
-
     }
 
     void Modeler::AddTexture(Frame* pF)
@@ -194,16 +244,13 @@ namespace ORB_SLAM2 {
         unique_lock<mutex> lock(mMutexTexture);
 
         TextureFrame texFrame(pF);
-
         if (mdTextureQueue.size() >= mnMaxTextureQueueSize) {
             mdTextureQueue.pop_front();
         }
-
         mdTextureQueue.push_back(texFrame);
-
     }
 
-    void Modeler::AddFrame(const long unsigned int &frameID, const cv::Mat &im)
+    void Modeler::AddFrameImage(const long unsigned int &frameID, const cv::Mat &im)
     {
         unique_lock<mutex> lock(mMutexFrame);
         if (mmFrameQueue.size() >= mnMaxFrameQueueSize) {

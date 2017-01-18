@@ -267,7 +267,7 @@ namespace ORB_SLAM2
         if(mState != NO_IMAGES_YET && mState != NOT_INITIALIZED){
             cv::Mat imu;
             cv::undistort(im,imu,mK,mDistCoef);
-            mpModeler->AddFrame(mCurrentFrame.mnId, imu);
+            mpModeler->AddFrameImage(mCurrentFrame.mnId, imu);
         }
 
         return mCurrentFrame.mTcw.clone();
