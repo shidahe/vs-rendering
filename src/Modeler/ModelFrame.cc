@@ -61,17 +61,22 @@ namespace ORB_SLAM2 {
         const float &PcY = Pc.at<float>(1);
         const float &PcZ = Pc.at<float>(2);
 
-        // Project in image and check it is not outside
-        const float invz = 1.0f / PcZ;
-        const float u = mfx * PcX * invz + mcx;
-        const float v = mfy * PcY * invz + mcy;
-
-        float uTex = u / s.width;
-        float vTex = v / s.height;
         std::vector<float> uv;
-        uv.push_back(uTex);
-        uv.push_back(vTex);
+        if(PcZ > 0) {
+            // Project in image and check it is not outside
+            const float invz = 1.0f / PcZ;
+            const float u = mfx * PcX * invz + mcx;
+            const float v = mfy * PcY * invz + mcy;
+
+            float uTex = u / s.width;
+            float vTex = v / s.height;
+            if (uTex > 0 && uTex < 1 && vTex > 0 && vTex < 1) {
+                uv.push_back(uTex);
+                uv.push_back(vTex);
+            }
+        }
         return uv;
+
     }
 
     vector<float> TextureFrame::GetTexCoordinate(float x, float y, float z) {
@@ -82,16 +87,20 @@ namespace ORB_SLAM2 {
         const float &PcY = Pc.at<float>(1);
         const float &PcZ = Pc.at<float>(2);
 
-        // Project in image and check it is not outside
-        const float invz = 1.0f / PcZ;
-        const float u = mfx * PcX * invz + mcx;
-        const float v = mfy * PcY * invz + mcy;
-
-        float uTex = u / (mnMaxX - mnMinX);
-        float vTex = v / (mnMaxY - mnMinY);
         std::vector<float> uv;
-        uv.push_back(uTex);
-        uv.push_back(vTex);
+        if(PcZ > 0) {
+            // Project in image and check it is not outside
+            const float invz = 1.0f / PcZ;
+            const float u = mfx * PcX * invz + mcx;
+            const float v = mfy * PcY * invz + mcy;
+
+            float uTex = u / (mnMaxX - mnMinX);
+            float vTex = v / (mnMaxY - mnMinY);
+            if (uTex > 0 && uTex < 1 && vTex > 0 && vTex < 1) {
+                uv.push_back(uTex);
+                uv.push_back(vTex);
+            }
+        }
         return uv;
     }
 

@@ -457,7 +457,8 @@ void SFMTranscriptInterface_ORBSLAM::addBundleAdjustmentEntry(set<KeyFrame *> & 
             // Log point-move entries
             for(set<MapPoint *>::iterator it = sMapPoints.begin(); it != sMapPoints.end(); it++){
                 if(m_mMapPoint_Index.count(*it) == 0)
-                    throw dlovi::Exception("Could not compute MapPoint index: no record.");
+                    continue;
+//                    throw dlovi::Exception("Could not compute MapPoint index: no record.");
                 nPointIndex = m_mMapPoint_Index[*it];
                 ssTmp << "move point: " << nPointIndex << ", [" << (*it)->GetWorldPos().at<float>(0) << "; " << (*it)->GetWorldPos().at<float>(1)
                       << "; " << (*it)->GetWorldPos().at<float>(2) << "]";
@@ -467,7 +468,8 @@ void SFMTranscriptInterface_ORBSLAM::addBundleAdjustmentEntry(set<KeyFrame *> & 
             // Log KF-move entries
             for(set<KeyFrame *>::iterator it = sAdjustSet.begin(); it != sAdjustSet.end(); it++){
                 if(m_mKeyFrame_Index.count(*it) == 0)
-                    throw dlovi::Exception("Could not compute KeyFrame index: no record.");
+                    continue;
+//                    throw dlovi::Exception("Could not compute KeyFrame index: no record.");
                 nCamIndex = m_mKeyFrame_Index[*it];
 
                 // TODO: Instead of inverting the whole transform, we should be able to just use the negative translation.

@@ -172,7 +172,7 @@ namespace ORB_SLAM2
                 // carv: show model points
                 mpModelDrawer->DrawModelPoints();
             }
-
+            CheckGlDieOnError()
             // carv: show model or triangle with light from camera
             if(menuShowModel && menuShowTexture) {
                 mpModelDrawer->DrawModel();
@@ -183,6 +183,8 @@ namespace ORB_SLAM2
             else if (!menuShowModel && menuShowTexture) {
                 mpModelDrawer->DrawFrame();
             }
+            CheckGlDieOnError()
+
 
             pangolin::FinishFrame();
 

@@ -17,12 +17,14 @@ namespace ORB_SLAM2
         vector<pair<cv::Mat,TextureFrame>> imAndTexFrame = mpModeler->GetTextures(numKFs);
 
         if (imAndTexFrame.size() >= numKFs) {
-            static unsigned int frameTex[4] = {0, 0, 0, 0};
-//            static unsigned int frameTex[1] = {0};
+//            static unsigned int frameTex[4] = {0, 0, 0, 0};
+            static unsigned int frameTex[1] = {0};
             if (!frameTex[0])
                 glGenTextures(numKFs, frameTex);
 
             cv::Size imSize = imAndTexFrame[0].first.size();
+
+            cv::imwrite("imageinDrawer.png",imAndTexFrame[0].first);
 
             for (int i = 0; i < numKFs; i++) {
                 glBindTexture(GL_TEXTURE_2D, frameTex[i]);
@@ -37,7 +39,7 @@ namespace ORB_SLAM2
                                  GL_RED,
                                  GL_UNSIGNED_BYTE,
                                  imAndTexFrame[i].first.data);
-                    GLint swizzleMask[] = {GL_RED, GL_RED, GL_RED, GL_RED};
+                    GLint swizzleMask[] = {GL_RED, GL_RED, GL_RED, 1};
                     glTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_RGBA, swizzleMask);
                 }
                 else if (imAndTexFrame[i].first.channels() == 3)
@@ -45,6 +47,14 @@ namespace ORB_SLAM2
                     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
                                  imSize.width, imSize.height, 0,
                                  GL_RGB,
+                                 GL_UNSIGNED_BYTE,
+                                 imAndTexFrame[i].first.data);
+                }
+                else if (imAndTexFrame[i].first.channels() == 4)
+                {
+                    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA,
+                                 imSize.width, imSize.height, 0,
+                                 GL_RGBA,
                                  GL_UNSIGNED_BYTE,
                                  imAndTexFrame[i].first.data);
                 }
@@ -70,8 +80,6 @@ namespace ORB_SLAM2
                 dlovi::Matrix normal = edge20.cross(edge10);
                 normal = normal / normal.norm();
 
-                glNormal3d(normal(0), normal(1), normal(2));
-
                 vector<double> dotProducts;
                 vector<int> indexTex;
                 for (int i = 0; i < numKFs; i++){
@@ -96,11 +104,14 @@ namespace ORB_SLAM2
                     vector<float> uv1 = tex.GetTexCoordinate(point1(0),point1(1),point1(2));
                     vector<float> uv2 = tex.GetTexCoordinate(point2(0),point2(1),point2(2));
 
-                    if (uv0[0] > 0 && uv0[0] < 1 && uv0[1] > 0 && uv0[1] < 1 &&
-                        uv1[0] > 0 && uv1[0] < 1 && uv1[1] > 0 && uv1[1] < 1 &&
-                        uv2[0] > 0 && uv2[0] < 1 && uv2[1] > 0 && uv2[1] < 1) {
+                    if (uv0.size() == 2 && uv1.size() == 2 && uv2.size() == 2) {
 
-                        glBindTexture(GL_TEXTURE_2D, frameTex[indexCurr]);
+                        // TODO: not the right way to do multi-texturing
+//                        glDisable(GL_TEXTURE_2D);
+//                        glEnable(GL_TEXTURE_2D);
+//                        glBindTexture(GL_TEXTURE_2D, frameTex[indexCurr]);
+
+                        glNormal3d(normal(0), normal(1), normal(2));
 
                         glTexCoord2f(uv0[0], uv0[1]);
                         glVertex3d(point0(0), point0(1), point0(2));
@@ -113,9 +124,7 @@ namespace ORB_SLAM2
 
                         break;
                     }
-
                 }
-
             }
             glEnd();
 
@@ -199,10 +208,39 @@ namespace ORB_SLAM2
         if (imAndTexFrame.size() >= numKFs) {
             glColor3f(1.0,1.0,1.0);
 
+            if (imAndTexFrame[0].first.empty()){
+                std::cerr << "ERROR: empty frame image" << endl;
+                return;
+            }
             cv::Size imSize = imAndTexFrame[0].first.size();
-            pangolin::GlTexture imageTexture(imSize.width, imSize.height, GL_RGB, false, 0, GL_RGB, GL_UNSIGNED_BYTE);
+
+//            static unsigned int frameTex[1] = {0};
+//            if (!frameTex[0])
+//                glGenTextures(numKFs, frameTex);
+//
+//            glEnable(GL_TEXTURE_2D);
+//            glBindTexture(GL_TEXTURE_2D, frameTex[0]);
+//            glTexImage2D(GL_TEXTURE_2D, 0, GL_R8,
+//                         imSize.width, imSize.height, 0,
+//                         GL_RED,
+//                         GL_UNSIGNED_BYTE,
+//                         imAndTexFrame[0].first.data);
+//            glBegin(GL_QUADS);
+//            glTexCoord2f(0.f, 1.f);
+//            glVertex2f(0.f, 0.f);
+//            glTexCoord2f(1.f, 1.f);
+//            glVertex2f(1.f, 0.f);
+//            glTexCoord2f(1.f, 0.f);
+//            glVertex2f(1.f, 1.f);
+//            glTexCoord2f(0.f, 0.f);
+//            glVertex2f(0.f, 1.f);
+//            glEnd();
+//            glDisable(GL_TEXTURE_2D);
+
+            pangolin::GlTexture imageTexture(imSize.width, imSize.height, GL_RGB, false, 0, GL_RGB,
+                                             GL_UNSIGNED_BYTE);
             imageTexture.Upload(imAndTexFrame[0].first.data, GL_RGB, GL_UNSIGNED_BYTE);
-            imageTexture.RenderToViewport(true);
+            imageTexture.RenderToViewportFlipY();
 
         }
     }

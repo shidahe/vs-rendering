@@ -439,10 +439,6 @@ void LoopClosing::CorrectLoop()
     CorrectedSim3[mpCurrentKF]=mg2oScw;
     cv::Mat Twc = mpCurrentKF->GetPoseInverse();
 
-    //carv: prepare bundle adjust entry
-    std::set<KeyFrame*> sBAKF;
-    std::set<MapPoint*> sBAMP;
-
     {
         // Get Map Mutex
         unique_lock<mutex> lock(mpMap->mMutexMapUpdate);
@@ -501,9 +497,6 @@ void LoopClosing::CorrectLoop()
                 pMPi->mnCorrectedByKF = mpCurrentKF->mnId;
                 pMPi->mnCorrectedReference = pKFi->mnId;
                 pMPi->UpdateNormalAndDepth();
-
-                //carv: add MapPoint to set
-                sBAMP.insert(pMPi);
             }
 
             // Update keyframe pose with corrected Sim3. First transform Sim3 to SE3 (scale translation)
@@ -516,9 +509,6 @@ void LoopClosing::CorrectLoop()
             cv::Mat correctedTiw = Converter::toCvSE3(eigR,eigt);
 
             pKFi->SetPose(correctedTiw);
-
-            //carv: add KeyFrame to set
-            sBAKF.insert(pKFi);
 
             // Make sure connections are updated
             pKFi->UpdateConnections();
@@ -574,9 +564,6 @@ void LoopClosing::CorrectLoop()
 
     // Optimize graph
     Optimizer::OptimizeEssentialGraph(mpMap, mpMatchedKF, mpCurrentKF, NonCorrectedSim3, CorrectedSim3, LoopConnections, mbFixScale);
-
-    // carv: log bundle adjust
-    mpMap->mpModeler->AddAdjustmentEntry(sBAKF,sBAMP);
 
     mpMap->InformNewBigChange();
 

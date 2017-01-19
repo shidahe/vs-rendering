@@ -758,6 +758,10 @@ void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool* pbStopFlag, Map* pMap
 
     // Recover optimized data
 
+    //carv: prepare bundle adjust entry
+    std::set<KeyFrame*> sBAKF;
+    std::set<MapPoint*> sBAMP;
+
     //Keyframes
     for(list<KeyFrame*>::iterator lit=lLocalKeyFrames.begin(), lend=lLocalKeyFrames.end(); lit!=lend; lit++)
     {
@@ -765,6 +769,9 @@ void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool* pbStopFlag, Map* pMap
         g2o::VertexSE3Expmap* vSE3 = static_cast<g2o::VertexSE3Expmap*>(optimizer.vertex(pKF->mnId));
         g2o::SE3Quat SE3quat = vSE3->estimate();
         pKF->SetPose(Converter::toCvMat(SE3quat));
+
+        //carv: add KeyFrame to set
+        sBAKF.insert(pKF);
     }
 
     //Points
@@ -774,7 +781,13 @@ void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool* pbStopFlag, Map* pMap
         g2o::VertexSBAPointXYZ* vPoint = static_cast<g2o::VertexSBAPointXYZ*>(optimizer.vertex(pMP->mnId+maxKFid+1));
         pMP->SetWorldPos(Converter::toCvMat(vPoint->estimate()));
         pMP->UpdateNormalAndDepth();
+
+        //carv: add MapPoint to set
+        sBAMP.insert(pMP);
     }
+
+    // carv: log bundle adjust
+    pMap->mpModeler->AddAdjustmentEntry(sBAKF,sBAMP);
 }
 
 

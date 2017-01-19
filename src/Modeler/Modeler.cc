@@ -48,7 +48,7 @@ namespace ORB_SLAM2 {
             }
             else {
 
-                AddPointsOnLineSegments();
+//                AddPointsOnLineSegments();
             }
 
             ResetIfRequested();
@@ -93,7 +93,7 @@ namespace ORB_SLAM2 {
         if (imGray.channels() > 1)
             cv::cvtColor(imGray,imGray,CV_RGB2GRAY);
 
-        cv::imwrite("imfile",im);
+        cv::imwrite("imfile.jpg",im);
         cv::imshow("im",im);
 
         vector<LS> lines = DetectLineSegments(imGray);
@@ -166,6 +166,8 @@ namespace ORB_SLAM2 {
 
     void Modeler::RunRemainder()
     {
+        unique_lock<mutex> lock(mMutexTranscript);
+
         mAlgInterface.runRemainder();
     }
 
@@ -204,6 +206,7 @@ namespace ORB_SLAM2 {
 
     void Modeler::AddAdjustmentEntry(std::set<KeyFrame*> & sAdjustSet, std::set<MapPoint*> & sMapPoints){
         unique_lock<mutex> lock(mMutexTranscript);
+        std::cout << "Add bundle adjustment entry" << std::endl;
         mTranscriptInterface.addBundleAdjustmentEntry(sAdjustSet, sMapPoints);
     }
 

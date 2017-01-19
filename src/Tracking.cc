@@ -264,7 +264,7 @@ namespace ORB_SLAM2
         Track();
 
         //CARV: aquire rgb image and frameid
-        if(mState != NO_IMAGES_YET && mState != NOT_INITIALIZED){
+        if(mState==OK){
             cv::Mat imu;
             cv::undistort(im,imu,mK,mDistCoef);
             mpModeler->AddFrameImage(mCurrentFrame.mnId, imu);
