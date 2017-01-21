@@ -15,7 +15,7 @@ namespace ORB_SLAM2 {
             mnMaxToLinesQueueSize(100)
     {
         mAlgInterface.setAlgorithmRef(&mObjAlgorithm);
-        mAlgInterface.setTranscriptRef(mTranscriptInterface.getTranscriptRef());
+        mAlgInterface.setTranscriptRef(mTranscriptInterface.getTranscriptToProcessRef());
         mAlgInterface.rewind();
     }
 
@@ -48,7 +48,7 @@ namespace ORB_SLAM2 {
             }
             else {
 
-//                AddPointsOnLineSegments();
+                AddPointsOnLineSegments();
             }
 
             ResetIfRequested();
@@ -87,14 +87,13 @@ namespace ORB_SLAM2 {
         cv::Mat im;
         {
             unique_lock<mutex> lock(mMutexFrame);
-            im = mmFrameQueue[pKF->mnFrameId].clone();
+            mmFrameQueue[pKF->mnFrameId].copyTo(im);
         }
-        cv::Mat imGray = im.clone();
-        if (imGray.channels() > 1)
-            cv::cvtColor(imGray,imGray,CV_RGB2GRAY);
+        cv::Mat imGray;
+        if (im.channels() > 1) // this should be always true
+            cv::cvtColor(im,imGray,CV_RGB2GRAY);
 
-        cv::imwrite("imfile.jpg",im);
-        cv::imshow("im",im);
+        cv::imwrite("image_to_detect_lines.jpg",imGray);
 
         vector<LS> lines = DetectLineSegments(imGray);
 
@@ -112,7 +111,6 @@ namespace ORB_SLAM2 {
 //
 //
 //            }
-
 
 
         //project points that were newly added when the keyframe entry was added, to the distance map
@@ -134,12 +132,17 @@ namespace ORB_SLAM2 {
         int noLines;
 
         srcImg = im.data;
-        width = im.cols;
-        height = im.rows;
+        width = im.size().width;
+        height = im.size().height;
+
+        cv::imwrite("image_just_about_to_detect_lines.jpg",im);
+        cout << "before detect lines. Type: " << im.type() << endl;
 
         LS *lines = DetectLinesByED(srcImg, width, height, &noLines);
+        cout << "after detect lines" << endl;
 
         vector<LS> vLines(lines, lines + noLines);
+//        vector<LS> vLines;
 
         return vLines;
     }
@@ -158,6 +161,7 @@ namespace ORB_SLAM2 {
         int numLines = mTranscriptInterface.getTranscriptRef()->numLines();
         if (numLines > mnLastNumLines) {
             mnLastNumLines = numLines;
+            mTranscriptInterface.UpdateTranscriptToProcess();
             return true;
         } else {
             return false;
@@ -166,8 +170,6 @@ namespace ORB_SLAM2 {
 
     void Modeler::RunRemainder()
     {
-        unique_lock<mutex> lock(mMutexTranscript);
-
         mAlgInterface.runRemainder();
     }
 
@@ -206,7 +208,6 @@ namespace ORB_SLAM2 {
 
     void Modeler::AddAdjustmentEntry(std::set<KeyFrame*> & sAdjustSet, std::set<MapPoint*> & sMapPoints){
         unique_lock<mutex> lock(mMutexTranscript);
-        std::cout << "Add bundle adjustment entry" << std::endl;
         mTranscriptInterface.addBundleAdjustmentEntry(sAdjustSet, sMapPoints);
     }
 
@@ -318,6 +319,15 @@ namespace ORB_SLAM2 {
     void Modeler::AddFrameImage(const long unsigned int &frameID, const cv::Mat &im)
     {
         unique_lock<mutex> lock(mMutexFrame);
+
+        // make a copy of image
+        cv::Mat imc;
+        im.copyTo(imc);
+        if(imc.channels()<3)
+            cvtColor(imc,imc,CV_GRAY2RGB);
+
+        cv::imwrite("frame_image_added.jpg",imc);
+
         if (mmFrameQueue.size() >= mnMaxFrameQueueSize) {
             mmFrameQueue.erase(mmFrameQueue.begin());
         }
@@ -325,7 +335,7 @@ namespace ORB_SLAM2 {
             std::cerr << "ERROR: trying to add an existing frame" << std::endl;
             return;
         }
-        mmFrameQueue.insert(make_pair(frameID,im.clone()));
+        mmFrameQueue.insert(make_pair(frameID,imc));
     }
 
 

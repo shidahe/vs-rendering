@@ -39,6 +39,15 @@ dlovi::compvis::SFMTranscript * SFMTranscriptInterface_ORBSLAM::getTranscriptRef
     }
 }
 
+dlovi::compvis::SFMTranscript * SFMTranscriptInterface_ORBSLAM::getTranscriptToProcessRef(){
+    try{
+        return & m_SFMTranscriptToProcess;
+    }
+    catch(std::exception & ex){
+        dlovi::Exception ex2(ex.what()); ex2.tag("SFMTranscriptInterface_ORBSLAM", "getTranscriptToProcessRef"); cerr << ex2.what() << endl; //ex2.raise();
+    }
+}
+
 // Public Methods
 
 void SFMTranscriptInterface_ORBSLAM::addResetEntry(){
@@ -534,5 +543,18 @@ void SFMTranscriptInterface_ORBSLAM::unsuppressRefindLogging(){
     }
 }
 
+
+void SFMTranscriptInterface_ORBSLAM::UpdateTranscriptToProcess(){
+    try{
+        int numToProcess = m_SFMTranscriptToProcess.numLines();
+        int numUpdated = m_SFMTranscript.numLines();
+        for (int i = numToProcess; i < numUpdated; i++){
+            m_SFMTranscriptToProcess.addLine(m_SFMTranscript.getLine(i));
+        }
+    }
+    catch(std::exception & ex){
+        dlovi::Exception ex2(ex.what()); ex2.tag("SFMTranscriptInterface_ORBSLAM", "unsuppressRefindLogging"); cerr << ex2.what() << endl; //ex2.raise();
+    }
+}
 
 #endif

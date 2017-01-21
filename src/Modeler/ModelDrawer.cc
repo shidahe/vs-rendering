@@ -24,41 +24,18 @@ namespace ORB_SLAM2
 
             cv::Size imSize = imAndTexFrame[0].first.size();
 
-            cv::imwrite("imageinDrawer.png",imAndTexFrame[0].first);
-
             for (int i = 0; i < numKFs; i++) {
                 glBindTexture(GL_TEXTURE_2D, frameTex[i]);
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
-                if (imAndTexFrame[i].first.channels() == 1)
-                {
-                    glTexImage2D(GL_TEXTURE_2D, 0, GL_R8,
-                                 imSize.width, imSize.height, 0,
-                                 GL_RED,
-                                 GL_UNSIGNED_BYTE,
-                                 imAndTexFrame[i].first.data);
-                    GLint swizzleMask[] = {GL_RED, GL_RED, GL_RED, 1};
-                    glTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_RGBA, swizzleMask);
-                }
-                else if (imAndTexFrame[i].first.channels() == 3)
-                {
-                    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
-                                 imSize.width, imSize.height, 0,
-                                 GL_RGB,
-                                 GL_UNSIGNED_BYTE,
-                                 imAndTexFrame[i].first.data);
-                }
-                else if (imAndTexFrame[i].first.channels() == 4)
-                {
-                    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA,
-                                 imSize.width, imSize.height, 0,
-                                 GL_RGBA,
-                                 GL_UNSIGNED_BYTE,
-                                 imAndTexFrame[i].first.data);
-                }
-
+                // image are saved in RGB format, grayscale images are converted
+                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
+                             imSize.width, imSize.height, 0,
+                             GL_RGB,
+                             GL_UNSIGNED_BYTE,
+                             imAndTexFrame[i].first.data);
             }
 
             UpdateModel();
@@ -80,6 +57,8 @@ namespace ORB_SLAM2
                 dlovi::Matrix normal = edge20.cross(edge10);
                 normal = normal / normal.norm();
 
+                glNormal3d(normal(0), normal(1), normal(2));
+
                 vector<double> dotProducts;
                 vector<int> indexTex;
                 for (int i = 0; i < numKFs; i++){
@@ -100,9 +79,9 @@ namespace ORB_SLAM2
                     int indexCurr = indexTex[i];
 
                     TextureFrame tex = imAndTexFrame[indexCurr].second;
-                    vector<float> uv0 = tex.GetTexCoordinate(point0(0),point0(1),point0(2));
-                    vector<float> uv1 = tex.GetTexCoordinate(point1(0),point1(1),point1(2));
-                    vector<float> uv2 = tex.GetTexCoordinate(point2(0),point2(1),point2(2));
+                    vector<float> uv0 = tex.GetTexCoordinate(point0(0),point0(1),point0(2),imSize);
+                    vector<float> uv1 = tex.GetTexCoordinate(point1(0),point1(1),point1(2),imSize);
+                    vector<float> uv2 = tex.GetTexCoordinate(point2(0),point2(1),point2(2),imSize);
 
                     if (uv0.size() == 2 && uv1.size() == 2 && uv2.size() == 2) {
 
@@ -110,8 +89,6 @@ namespace ORB_SLAM2
 //                        glDisable(GL_TEXTURE_2D);
 //                        glEnable(GL_TEXTURE_2D);
 //                        glBindTexture(GL_TEXTURE_2D, frameTex[indexCurr]);
-
-                        glNormal3d(normal(0), normal(1), normal(2));
 
                         glTexCoord2f(uv0[0], uv0[1]);
                         glVertex3d(point0(0), point0(1), point0(2));
@@ -158,7 +135,6 @@ namespace ORB_SLAM2
 #endif
 
         GLfloat light_position[] = { 0.0, 0.0, 1.0, 0.0 };
-////            GLfloat light_position[] = {10, 10, 10, 0};
         glLightfv(GL_LIGHT0, GL_POSITION, light_position);
 
         glPopMatrix();
@@ -213,29 +189,6 @@ namespace ORB_SLAM2
                 return;
             }
             cv::Size imSize = imAndTexFrame[0].first.size();
-
-//            static unsigned int frameTex[1] = {0};
-//            if (!frameTex[0])
-//                glGenTextures(numKFs, frameTex);
-//
-//            glEnable(GL_TEXTURE_2D);
-//            glBindTexture(GL_TEXTURE_2D, frameTex[0]);
-//            glTexImage2D(GL_TEXTURE_2D, 0, GL_R8,
-//                         imSize.width, imSize.height, 0,
-//                         GL_RED,
-//                         GL_UNSIGNED_BYTE,
-//                         imAndTexFrame[0].first.data);
-//            glBegin(GL_QUADS);
-//            glTexCoord2f(0.f, 1.f);
-//            glVertex2f(0.f, 0.f);
-//            glTexCoord2f(1.f, 1.f);
-//            glVertex2f(1.f, 0.f);
-//            glTexCoord2f(1.f, 0.f);
-//            glVertex2f(1.f, 1.f);
-//            glTexCoord2f(0.f, 0.f);
-//            glVertex2f(0.f, 1.f);
-//            glEnd();
-//            glDisable(GL_TEXTURE_2D);
 
             pangolin::GlTexture imageTexture(imSize.width, imSize.height, GL_RGB, false, 0, GL_RGB,
                                              GL_UNSIGNED_BYTE);

@@ -600,6 +600,8 @@ namespace dlovi {
         // Step 2:
         for (int nLoop = 0; nLoop < (int) arrHndlQ.size(); nLoop++) {
             Delaunay3::Vertex_handle hndlQ = arrHndlQ[nLoop];
+            if (! dt.is_vertex(hndlQ))
+                continue;
             dt.remove(hndlQ);
         }
 

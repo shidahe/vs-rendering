@@ -22,6 +22,7 @@ public:
 
     // Getters
     dlovi::compvis::SFMTranscript * getTranscriptRef();
+    dlovi::compvis::SFMTranscript * getTranscriptToProcessRef();
 
     // Public Methods
     void addResetEntry();
@@ -40,9 +41,16 @@ public:
     void unsuppressBundleAdjustmentLogging();
     void suppressRefindLogging();
     void unsuppressRefindLogging();
+
+    void UpdateTranscriptToProcess();
+
 private:
     // Member Variables
     dlovi::compvis::SFMTranscript m_SFMTranscript;
+
+    // transcript that is guarded by mutex
+    dlovi::compvis::SFMTranscript m_SFMTranscriptToProcess;
+
     bool m_bSuppressRefindLogging;
     bool m_bSuppressBundleAdjustmentLogging;
 
