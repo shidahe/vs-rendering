@@ -4,6 +4,10 @@
 
 #include "Modeler/Modeler.h"
 
+// Header files needed by EDLines
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 /// Function prototype for DetectEdgesByED exported by EDLinesLib.a
 LS *DetectLinesByED(unsigned char *srcImg, int width, int height, int *pNoLines);
 
@@ -84,65 +88,117 @@ namespace ORB_SLAM2 {
         // Avoid that a keyframe can be erased while it is being process by this thread
         pKF->SetNotErase();
 
-        cv::Mat im;
+        cv::Mat imGray;
         {
             unique_lock<mutex> lock(mMutexFrame);
-            mmFrameQueue[pKF->mnFrameId].copyTo(im);
+            mmFrameQueue[pKF->mnFrameId].copyTo(imGray);
         }
-        cv::Mat imGray;
-        if (im.channels() > 1) // this should be always true
-            cv::cvtColor(im,imGray,CV_RGB2GRAY);
 
-        cv::imwrite("image_to_detect_lines.jpg",imGray);
+        if(imGray.empty()){
+            pKF->SetErase();
+            cout << "Empty image to draw line!" << endl;
+            return;
+        }
 
-        vector<LS> lines = DetectLineSegments(imGray);
+        if (imGray.channels() > 1) // this should be always true
+            cv::cvtColor(imGray,imGray,CV_RGB2GRAY);
+
+        vector<LineSegment> lines = DetectLineSegments(imGray);
 
         for(size_t indexLines = 0; indexLines < lines.size(); indexLines++){
-            std::cout << "Lines: (" << lines[indexLines].sx << "," << lines[indexLines].sx << ") ("
-                      << lines[indexLines].ex << "," << lines[indexLines].ey << ")" << std::endl;
-        }
+            LineSegment& line = lines[indexLines];
+            // set reference keyframe of the line segment
+            line.mpRefKF = pKF;
+
+            std::cout << "Lines: " << indexLines+1 << ":" << lines.size() << "(" << line.mStart.x << ","
+                      << line.mStart.y << ") (" << line.mEnd.x << "," << line.mEnd.y << ")" << std::endl;
 
         //calculate distance map of lines
-//            cv::Mat binImage (im.size(), CV_8U);
-//            for (size_t indexLines = 0; indexLines < lines.size(); indexLines++){
-//                //assign pixels on lines to 1
-//                cv::Point2d start(lines[indexLines].sx, lines[indexLines].sy);
-//                cv::Point2d end(lines[indexLines].ex, lines[indexLines].ey);
-//
-//
-//            }
+//        for (size_t indexLines = 0; indexLines < lines.size(); indexLines++){
+            //assign pixels on lines to 255
+//            cv::Point2d start(lines[indexLines].sx, lines[indexLines].sy);
+//            cv::Point2d end(lines[indexLines].ex, lines[indexLines].ey);
+//            cv::Mat binImage;
+//            binImage = cv::Mat::zeros(imGray.size(), CV_8UC1);
+//            cv::line(binImage, lines[indexLines].mStart, lines[indexLines].mEnd, cv::Scalar(255));
+//            cv::Mat dist;
+//            cv::distanceTransform(binImage, dist, CV_DIST_L2, 3);
 
+//            normalize(dist, dist, 0, 1., cv::NORM_MINMAX);
+//            cv::imwrite("distance_transfrom.jpg",dist);
 
-        //project points that were newly added when the keyframe entry was added, to the distance map
+            //project points that were newly added when the keyframe entry was added, to the distance map
+//            vector<MapPoint *> vpMP = mTranscriptInterface.GetNewPoints(pKF);
+            set<MapPoint*> spMP = pKF->GetMapPoints();
+
+            // calculate distance from point to line, if small enough, assign it to the supporting point list of the line
+            cv::Point2f &start = line.mStart;
+            cv::Point2f &end = line.mEnd;
+            cv::Point2f diff = end - start;
+            float l2 = std::pow(diff.x, 2.0f) + std::pow(diff.y, 2.0f);
+
+            for (set<MapPoint*>::iterator it = spMP.begin(); it != spMP.end(); it++) {
+                if ((*it)->isBad())
+                    continue;
+
+                cv::Point2f xy = pKF->ProjectPointOnCamera(*it);
+
+                float t = max(0.0f, min(1.0f, (xy-start).dot(end-start) / l2));
+                cv::Point2f proj = start + t * (end - start);
+                cv::Point2f minDiff = xy - proj;
+                float distSqr = std::pow(minDiff.x, 2.0f) + std::pow(minDiff.y, 2.0f);
+                if (distSqr < 2.0)
+                    line.mvpMP.push_back(*it);
+            }
+        }
+
         //find points that are not bad from keyframes that are not bad
         //which are on the lines (supporting the 3d position calculation)
         //densify by add points from lines
 
         // maybe: remove line points from a keyframe if the keyframe is deleted
         // maybe: remove line points if too many supporting points are deleted
+        // maybe: move line points if supporting points are moved
 
+
+        {
+            //update lines and image to draw
+            unique_lock<mutex> lock(mMutexLines);
+            mvLines = lines;
+            mImLines = imGray;
+        }
 
         pKF->SetErase();
 
     }
 
-    vector<LS> Modeler::DetectLineSegments(cv::Mat im) {
+    vector<LineSegment> Modeler::DetectLineSegments(cv::Mat im) {
         int width, height;
         unsigned char *srcImg;
         int noLines;
 
-        srcImg = im.data;
         width = im.size().width;
         height = im.size().height;
 
-        cv::imwrite("image_just_about_to_detect_lines.jpg",im);
-        cout << "before detect lines. Type: " << im.type() << endl;
+        // copy data to a new array
+        int nSize = width*height;
+        srcImg = new unsigned char[nSize];
+        unsigned char *pImCopy = srcImg;
+        unsigned char *pImData = im.data;
+        for (int k = 0; k < nSize; k++) {
+            *pImCopy++ = *pImData++;
+        }
 
         LS *lines = DetectLinesByED(srcImg, width, height, &noLines);
-        cout << "after detect lines" << endl;
 
-        vector<LS> vLines(lines, lines + noLines);
-//        vector<LS> vLines;
+        vector<LineSegment> vLines;
+        for (int k = 0; k < noLines; k++) {
+            LineSegment line(lines + k);
+            vLines.push_back(line);
+        }
+
+        delete lines;
+        delete[] srcImg;
 
         return vLines;
     }
@@ -254,6 +310,10 @@ namespace ORB_SLAM2 {
                 unique_lock<mutex> lock2(mMutexToLines);
                 mdToLinesQueue.clear();
             }
+            {
+                unique_lock<mutex> lock2(mMutexLines);
+                mvLines.clear();
+            }
             mbFirstKeyFrame = true;
 
             mbResetRequested=false;
@@ -320,13 +380,11 @@ namespace ORB_SLAM2 {
     {
         unique_lock<mutex> lock(mMutexFrame);
 
-        // make a copy of image
+        // make a copy of image and save as RGB
         cv::Mat imc;
         im.copyTo(imc);
-        if(imc.channels()<3)
+        if(imc.channels() < 3)
             cvtColor(imc,imc,CV_GRAY2RGB);
-
-        cv::imwrite("frame_image_added.jpg",imc);
 
         if (mmFrameQueue.size() >= mnMaxFrameQueueSize) {
             mmFrameQueue.erase(mmFrameQueue.begin());
@@ -354,5 +412,42 @@ namespace ORB_SLAM2 {
 
         return imAndTexFrame;
     }
+
+    cv::Mat Modeler::GetImageWithLines()
+    {
+        unique_lock<mutex> lock(mMutexLines);
+        cv::Mat im;
+        if(!mImLines.empty()) {
+            mImLines.copyTo(im);
+        } else {
+            im = cv::Mat::zeros(200, 200, CV_8UC3);
+        }
+
+        if(im.channels() < 3) // this should always be true
+            cvtColor(im,im,CV_GRAY2RGB);
+
+        for(size_t i = 0; i < mvLines.size(); i++){
+            LineSegment line = mvLines[i];
+            cv::line(im, line.mStart, line.mEnd, cv::Scalar(0,255,0));
+
+            // draw points on line segment
+            vector<MapPoint*> vpMP = line.mvpMP;
+            for (size_t j = 0; j < vpMP.size(); j++){
+                MapPoint * pMP = vpMP[j];
+                cv::Point2f pt = line.mpRefKF->ProjectPointOnCamera(pMP);
+                const float r = 5;
+                cv::Point2f pt1,pt2;
+                pt1.x=pt.x-r;
+                pt1.y=pt.y-r;
+                pt2.x=pt.x+r;
+                pt2.y=pt.y+r;
+                cv::rectangle(im,pt1,pt2,cv::Scalar(0,255,0));
+                cv::circle(im,pt,2,cv::Scalar(0,255,0),-1);
+            }
+        }
+
+        return im;
+    }
+
 
 }

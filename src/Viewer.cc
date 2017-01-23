@@ -82,6 +82,7 @@ namespace ORB_SLAM2
         pangolin::Var<bool> menuCameraView("menu.Camera View",true,true);
         pangolin::Var<bool> menuShowModel("menu.Show Model",true,true);
         pangolin::Var<bool> menuShowTexture("menu.Show Texture",true,true);
+        pangolin::Var<bool> menuShowLines("menu.Show Lines",true,true);
         pangolin::Var<bool> menuLocalizationMode("menu.Localization Mode",false,true);
         pangolin::Var<bool> menuReset("menu.Reset",false,false);
 
@@ -104,6 +105,8 @@ namespace ORB_SLAM2
         MapTwc.SetIdentity();
 
         cv::namedWindow("ORB-SLAM2: Current Frame");
+
+        cv::namedWindow("Detected Lines");
 
         bool bFollow = true;
         bool bLocalizationMode = false;
@@ -172,6 +175,7 @@ namespace ORB_SLAM2
                 // carv: show model points
                 mpModelDrawer->DrawModelPoints();
             }
+
             CheckGlDieOnError()
             // carv: show model or triangle with light from camera
             if(menuShowModel && menuShowTexture) {
@@ -185,8 +189,13 @@ namespace ORB_SLAM2
             }
             CheckGlDieOnError()
 
-
             pangolin::FinishFrame();
+
+            //carv: show detected lines
+            if(menuShowLines){
+                cv::Mat im = mpModelDrawer->DrawLines();
+                cv::imshow("Detected Lines",im);
+            }
 
             cv::Mat im = mpFrameDrawer->DrawFrame();
             cv::imshow("ORB-SLAM2: Current Frame",im);
@@ -207,6 +216,8 @@ namespace ORB_SLAM2
                 menuCameraView = true;
                 menuShowModel = true;
                 menuShowTexture = true;
+                menuShowLines = true;
+
                 mpSystem->Reset();
                 menuReset = false;
             }

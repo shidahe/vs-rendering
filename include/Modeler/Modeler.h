@@ -20,6 +20,23 @@ namespace ORB_SLAM2 {
     class Frame;
     class ModelDrawer;
 
+
+    class LineSegment {
+    public:
+        LineSegment(LS* pLS){
+            mStart.x = pLS->sx;
+            mStart.y = pLS->sy;
+            mEnd.x = pLS->ex;
+            mEnd.y = pLS->ey;
+            mpRefKF = NULL;
+        }
+
+        vector<MapPoint*> mvpMP;
+        KeyFrame* mpRefKF;
+        cv::Point2f mStart;
+        cv::Point2f mEnd;
+    };
+
     class Modeler {
     public:
         Modeler(ModelDrawer* pModelDrawer);
@@ -39,7 +56,7 @@ namespace ORB_SLAM2 {
 
         void AddPointsOnLineSegments();
         void DetectLineSegmentsLater(KeyFrame* pKF);
-        vector<LS> DetectLineSegments(cv::Mat im);
+        vector<LineSegment> DetectLineSegments(cv::Mat im);
 
         void AddKeyFrameEntry(KeyFrame* pKF);
         void AddDeletePointEntry(MapPoint* pMP);
@@ -57,6 +74,9 @@ namespace ORB_SLAM2 {
 
         // get last n keyframes for texturing
         vector<pair<cv::Mat,TextureFrame>> GetTextures(int n);
+
+        // get last detected lines and cooresponding image
+        cv::Mat GetImageWithLines();
 
     public:
         void ResetIfRequested();
@@ -102,6 +122,11 @@ namespace ORB_SLAM2 {
         std::deque<KeyFrame*> mdToLinesQueue;
         size_t mnMaxToLinesQueueSize;
         std::mutex mMutexToLines;
+
+        //lines detected
+        std::vector<LineSegment> mvLines;
+        cv::Mat mImLines;
+        std::mutex mMutexLines;
 
     };
 }

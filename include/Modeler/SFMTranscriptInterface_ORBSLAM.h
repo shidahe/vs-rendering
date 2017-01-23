@@ -32,8 +32,8 @@ public:
     void addFirstKeyFrameInsertionEntry(KeyFrame *k);
     void addKeyFrameInsertionEntry(KeyFrame *k);
 
-    void addFirstFrameInsertionEntry(ModelFrame *pMF);
-    void addFrameInsertionEntry(ModelFrame *pMF);
+    void addKeyFrameInsertionEntryAndDetectLines(KeyFrame *k);
+    void addFirstKeyFrameInsertionEntryAndDetectLines(KeyFrame *k);
 
     void addBundleAdjustmentEntry(std::set<KeyFrame *> & sAdjustSet, std::set<MapPoint *> & sMapPoints);
     void writeToFile(const std::string & strFileName) const;
@@ -43,6 +43,8 @@ public:
     void unsuppressRefindLogging();
 
     void UpdateTranscriptToProcess();
+
+    vector<MapPoint *> GetNewPoints(KeyFrame *pKF);
 
 private:
     // Member Variables
@@ -58,6 +60,9 @@ private:
     std::map<KeyFrame *, int> m_mKeyFrame_Index;	// TODO: possibly change to hashed?
     // Store ID instead of pointer
     std::map<long unsigned int, int> m_mFrame_Index;
+
+    // correspondence between added keyframes and mappoints
+    std::map<KeyFrame *, vector<MapPoint *>> m_mKeyFrame_MapPoint;
 };
 
 #endif

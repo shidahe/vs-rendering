@@ -198,6 +198,12 @@ namespace ORB_SLAM2
         }
     }
 
+    cv::Mat ModelDrawer::DrawLines()
+    {
+        cv::Mat im = mpModeler->GetImageWithLines();
+        return im;
+    }
+
 
     void ModelDrawer::UpdateModel()
     {

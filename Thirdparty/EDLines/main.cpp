@@ -19,7 +19,7 @@
  *     Pattern Recognition Letters, 32(13), 1633-1642, DOI: 10.1016/j.patrec.2011.06.001 (2011).
  *
  * [2] C. Akinlar and C. Topal, "EDLines: Realtime Line Segment Detection by Edge Drawing (ED),"
- *     IEEE Int’l Conf. on Image Processing (ICIP), Sep. 2011.
+ *     IEEE Intï¿½l Conf. on Image Processing (ICIP), Sep. 2011.
  **************************************************************************************************************/
 
 /***************************************************

@@ -116,6 +116,7 @@ public:
         return pKF1->mnId<pKF2->mnId;
     }
 
+    cv::Point2f ProjectPointOnCamera(MapPoint* pMP);
 
     // The following variables are accesed from only 1 thread or never change (no mutex needed).
 public:
