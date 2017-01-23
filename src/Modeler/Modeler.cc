@@ -238,16 +238,91 @@ namespace ORB_SLAM2 {
         // Avoid that a keyframe can be erased while it is being process by this thread
         pKF->SetNotErase();
 
+        cv::Mat imGray;
+        {
+            unique_lock<mutex> lock(mMutexFrame);
+            mmFrameQueue[pKF->mnFrameId].copyTo(imGray);
+        }
+
+        if(imGray.empty()){
+            pKF->SetErase();
+            cout << "Empty image to draw line!" << endl;
+            return;
+        }
+
+        if (imGray.channels() > 1) // this should be always true
+            cv::cvtColor(imGray,imGray,CV_RGB2GRAY);
+
+        vector<LineSegment> lines = DetectLineSegments(imGray);
+
+        vector<cv::Point3f> vPOnLine;
+
+        for(size_t indexLines = 0; indexLines < lines.size(); indexLines++) {
+            LineSegment &line = lines[indexLines];
+            line.mpRefKF = pKF;
+
+            std::cout << "Lines: " << indexLines+1 << ":" << lines.size() << "(" << line.mStart.x << ","
+                      << line.mStart.y << ") (" << line.mEnd.x << "," << line.mEnd.y << ")" << std::endl;
+
+            set<MapPoint*> spMP = pKF->GetMapPoints();
+
+            // calculate distance from point to line, if small enough, assign it to the supporting point list of the line
+            cv::Point2f &start = line.mStart;
+            cv::Point2f &end = line.mEnd;
+            cv::Point2f diff = end - start;
+            float l2 = std::pow(diff.x, 2.0f) + std::pow(diff.y, 2.0f);
+
+            for (set<MapPoint*>::iterator it = spMP.begin(); it != spMP.end(); it++) {
+                if ((*it)->isBad())
+                    continue;
+                if ((*it)->Observations() < 3)
+                    continue;
+
+                cv::Point2f xy = pKF->ProjectPointOnCamera(*it);
+
+                float t = max(0.0f, min(1.0f, (xy-start).dot(end-start) / l2));
+                cv::Point2f proj = start + t * (end - start);
+                cv::Point2f minDiff = xy - proj;
+                float distSqr = std::pow(minDiff.x, 2.0f) + std::pow(minDiff.y, 2.0f);
+                if (distSqr < 2.0) {
+                    line.mmpMPProj[*it] = t;
+                }
+            }
+            if (line.mmpMPProj.size() >= 3){
+                //TODO: using the first and last at this time, probably change to svd
+                cv::Point3f p1, p2;
+                cv::Mat p1mat = line.mmpMPProj.begin()->first->GetWorldPos();
+                cv::Mat p2mat = line.mmpMPProj.rbegin()->first->GetWorldPos();
+                float t1 = line.mmpMPProj.begin()->second;
+                float t2 = line.mmpMPProj.rbegin()->second;
+
+                p1.x = p1mat.at<float>(0);
+                p1.y = p1mat.at<float>(1);
+                p1.z = p1mat.at<float>(2);
+                p2.x = p2mat.at<float>(0);
+                p2.y = p2mat.at<float>(1);
+                p2.z = p2mat.at<float>(2);
+
+                cv::Point3f dt = (p2 - p1) * (1 / (t2 - t1));
+                cv::Point3f start3f = p1 - t1 * dt;
+
+                for (float i = 0.0; i < 1.0; i+=0.1){
+                    cv::Point3f currP = start3f + i * dt;
+                    vPOnLine.push_back(currP);
+                }
+            }
+        }
+
         if (mbFirstKeyFrame) {
-            mTranscriptInterface.addFirstKeyFrameInsertionEntry(pKF);
+            mTranscriptInterface.addFirstKeyFrameInsertionWithLinesEntry(pKF, vPOnLine);
             mbFirstKeyFrame = false;
         } else {
-            mTranscriptInterface.addKeyFrameInsertionEntry(pKF);
+            mTranscriptInterface.addKeyFrameInsertionWithLinesEntry(pKF, vPOnLine);
         }
 
         AddTexture(pKF);
 
-        DetectLineSegmentsLater(pKF);
+//        DetectLineSegmentsLater(pKF);
 
         pKF->SetErase();
     }

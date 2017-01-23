@@ -8,6 +8,7 @@
 #include "MapPoint.h"
 #include "KeyFrame.h"
 #include "Modeler/ModelFrame.h"
+#include <Thirdparty/EDLines/LS.h>
 
 typedef ORB_SLAM2::MapPoint MapPoint;
 typedef ORB_SLAM2::KeyFrame KeyFrame;
@@ -32,8 +33,8 @@ public:
     void addFirstKeyFrameInsertionEntry(KeyFrame *k);
     void addKeyFrameInsertionEntry(KeyFrame *k);
 
-    void addKeyFrameInsertionEntryAndDetectLines(KeyFrame *k);
-    void addFirstKeyFrameInsertionEntryAndDetectLines(KeyFrame *k);
+    void addKeyFrameInsertionWithLinesEntry(KeyFrame *k, vector<cv::Point3f> vP);
+    void addFirstKeyFrameInsertionWithLinesEntry(KeyFrame *k, vector<cv::Point3f> vP);
 
     void addBundleAdjustmentEntry(std::set<KeyFrame *> & sAdjustSet, std::set<MapPoint *> & sMapPoints);
     void writeToFile(const std::string & strFileName) const;
@@ -63,6 +64,7 @@ private:
 
     // correspondence between added keyframes and mappoints
     std::map<KeyFrame *, vector<MapPoint *>> m_mKeyFrame_MapPoint;
+    std::map<cv::Point3f, int> m_mLinePoint_Index;
 };
 
 #endif

@@ -32,6 +32,7 @@ namespace ORB_SLAM2 {
         }
 
         vector<MapPoint*> mvpMP;
+        map<MapPoint*,float> mmpMPProj;
         KeyFrame* mpRefKF;
         cv::Point2f mStart;
         cv::Point2f mEnd;
