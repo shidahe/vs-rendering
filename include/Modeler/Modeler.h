@@ -31,7 +31,7 @@ namespace ORB_SLAM2 {
             mpRefKF = NULL;
         }
 
-        vector<MapPoint*> mvpMP;
+        map<MapPoint*, float> mmpMPProj;
         KeyFrame* mpRefKF;
         cv::Point2f mStart;
         cv::Point2f mEnd;
@@ -56,7 +56,8 @@ namespace ORB_SLAM2 {
 
         void AddPointsOnLineSegments();
         void DetectLineSegmentsLater(KeyFrame* pKF);
-        vector<LineSegment> DetectLineSegments(cv::Mat im);
+        std::vector<LineSegment> DetectLineSegments(cv::Mat& im);
+        std::vector<cv::Point3f> GetPointsOnLineSegments(KeyFrame* pKF);
 
         void AddKeyFrameEntry(KeyFrame* pKF);
         void AddDeletePointEntry(MapPoint* pMP);
@@ -73,7 +74,7 @@ namespace ORB_SLAM2 {
         void AddFrameImage(const long unsigned int &frameID, const cv::Mat &im);
 
         // get last n keyframes for texturing
-        vector<pair<cv::Mat,TextureFrame>> GetTextures(int n);
+        std::vector<pair<cv::Mat,TextureFrame>> GetTextures(int n);
 
         // get last detected lines and cooresponding image
         cv::Mat GetImageWithLines();

@@ -32,8 +32,7 @@ public:
     void addFirstKeyFrameInsertionEntry(KeyFrame *k);
     void addKeyFrameInsertionEntry(KeyFrame *k);
 
-    void addKeyFrameInsertionEntryAndDetectLines(KeyFrame *k);
-    void addFirstKeyFrameInsertionEntryAndDetectLines(KeyFrame *k);
+    void addKeyFrameInsertionWithLinesEntry(KeyFrame *k, std::vector<cv::Point3f>& vP);
 
     void addBundleAdjustmentEntry(std::set<KeyFrame *> & sAdjustSet, std::set<MapPoint *> & sMapPoints);
     void writeToFile(const std::string & strFileName) const;
@@ -62,7 +61,7 @@ private:
     std::map<long unsigned int, int> m_mFrame_Index;
 
     // correspondence between added keyframes and mappoints
-    std::map<KeyFrame *, vector<MapPoint *>> m_mKeyFrame_MapPoint;
+    std::map<KeyFrame *, std::vector<MapPoint *>> m_mKeyFrame_MapPoint;
 };
 
 #endif

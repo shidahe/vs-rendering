@@ -4,6 +4,8 @@
 
 #include "Modeler/Modeler.h"
 
+#include <chrono>
+
 // Header files needed by EDLines
 #include <stdio.h>
 #include <stdlib.h>
@@ -88,6 +90,22 @@ namespace ORB_SLAM2 {
         // Avoid that a keyframe can be erased while it is being process by this thread
         pKF->SetNotErase();
 
+        std::vector<cv::Point3f> vPOnLine = GetPointsOnLineSegments(pKF);
+
+        {
+            unique_lock<mutex> lock(mMutexTranscript);
+            KeyFrame* pKFcopy = new KeyFrame(pKF);
+            mTranscriptInterface.addKeyFrameInsertionWithLinesEntry(pKFcopy,vPOnLine);
+        }
+
+        pKF->SetErase();
+
+    }
+
+    std::vector<cv::Point3f> Modeler::GetPointsOnLineSegments(KeyFrame* pKF){
+
+        std::vector<cv::Point3f> vPOnLine;
+
         cv::Mat imGray;
         {
             unique_lock<mutex> lock(mMutexFrame);
@@ -95,25 +113,25 @@ namespace ORB_SLAM2 {
         }
 
         if(imGray.empty()){
-            pKF->SetErase();
             cout << "Empty image to draw line!" << endl;
-            return;
+            vPOnLine.clear();
+            return vPOnLine;
         }
 
         if (imGray.channels() > 1) // this should be always true
             cv::cvtColor(imGray,imGray,CV_RGB2GRAY);
 
-        vector<LineSegment> lines = DetectLineSegments(imGray);
+        std::vector<LineSegment> lines = DetectLineSegments(imGray);
 
         for(size_t indexLines = 0; indexLines < lines.size(); indexLines++){
             LineSegment& line = lines[indexLines];
             // set reference keyframe of the line segment
             line.mpRefKF = pKF;
 
-            std::cout << "Lines: " << indexLines+1 << ":" << lines.size() << "(" << line.mStart.x << ","
-                      << line.mStart.y << ") (" << line.mEnd.x << "," << line.mEnd.y << ")" << std::endl;
+//            std::cout << "Lines: " << indexLines+1 << ":" << lines.size() << "(" << line.mStart.x << ","
+//                      << line.mStart.y << ") (" << line.mEnd.x << "," << line.mEnd.y << ")" << std::endl;
 
-        //calculate distance map of lines
+            //calculate distance map of lines
 //        for (size_t indexLines = 0; indexLines < lines.size(); indexLines++){
             //assign pixels on lines to 255
 //            cv::Point2d start(lines[indexLines].sx, lines[indexLines].sy);
@@ -128,8 +146,12 @@ namespace ORB_SLAM2 {
 //            cv::imwrite("distance_transfrom.jpg",dist);
 
             //project points that were newly added when the keyframe entry was added, to the distance map
-//            vector<MapPoint *> vpMP = mTranscriptInterface.GetNewPoints(pKF);
-            set<MapPoint*> spMP = pKF->GetMapPoints();
+//            std::vector<MapPoint *> vpMP;
+//            {
+//                unique_lock<mutex> lock(mMutexTranscript);
+//                vpMP = mTranscriptInterface.GetNewPoints(pKF);
+//            }
+            std::set<MapPoint*> vpMP = pKF->GetMapPoints();
 
             // calculate distance from point to line, if small enough, assign it to the supporting point list of the line
             cv::Point2f &start = line.mStart;
@@ -137,8 +159,10 @@ namespace ORB_SLAM2 {
             cv::Point2f diff = end - start;
             float l2 = std::pow(diff.x, 2.0f) + std::pow(diff.y, 2.0f);
 
-            for (set<MapPoint*>::iterator it = spMP.begin(); it != spMP.end(); it++) {
+            for (std::set<MapPoint*>::iterator it = vpMP.begin(); it != vpMP.end(); it++) {
                 if ((*it)->isBad())
+                    continue;
+                if ((*it)->Observations() < 3)
                     continue;
 
                 cv::Point2f xy = pKF->ProjectPointOnCamera(*it);
@@ -147,10 +171,47 @@ namespace ORB_SLAM2 {
                 cv::Point2f proj = start + t * (end - start);
                 cv::Point2f minDiff = xy - proj;
                 float distSqr = std::pow(minDiff.x, 2.0f) + std::pow(minDiff.y, 2.0f);
-                if (distSqr < 2.0)
-                    line.mvpMP.push_back(*it);
+                if (distSqr < 2.0) {
+                    line.mmpMPProj[*it] = t;
+                }
+            }
+
+            if (line.mmpMPProj.size() >= 3) {
+                //TODO: using the first and last at this time, probably change to svd
+                cv::Point3f p1, p2;
+                cv::Mat p1mat = line.mmpMPProj.begin()->first->GetWorldPos();
+                cv::Mat p2mat = line.mmpMPProj.rbegin()->first->GetWorldPos();
+                float t1 = line.mmpMPProj.begin()->second;
+                float t2 = line.mmpMPProj.rbegin()->second;
+
+                p1.x = p1mat.at<float>(0);
+                p1.y = p1mat.at<float>(1);
+                p1.z = p1mat.at<float>(2);
+                p2.x = p2mat.at<float>(0);
+                p2.y = p2mat.at<float>(1);
+                p2.z = p2mat.at<float>(2);
+
+//                cv::Point3f dt = (p2 - p1) * (1 / (t2 - t1));
+//                cv::Point3f start3f = p1 - t1 * dt;
+                cv::Point3f dt = p2 - p1;
+                cv::Point3f start3f = p1;
+
+                cout << "p1mat" << p1mat << endl;
+                cout << "p2mat" << p2mat << endl;
+                cout << "dt" << dt << endl;
+                cout << "start3f" << start3f << endl;
+
+                for (float i = 0.2; i < 1.0; i += 0.3) {
+                    cv::Point3f currP = start3f + i * dt;
+                    cout << "currP" << currP << endl;
+                    vPOnLine.push_back(currP);
+                }
             }
         }
+
+        cout << vPOnLine.size() << " points are generated from " << vPOnLine.size()/3 << " lines. " << lines.size()
+             << " lines are detected from keyframe with " << pKF->TrackedMapPoints(3)  << " tracked points." << endl;
+
 
         //find points that are not bad from keyframes that are not bad
         //which are on the lines (supporting the 3d position calculation)
@@ -160,19 +221,19 @@ namespace ORB_SLAM2 {
         // maybe: remove line points if too many supporting points are deleted
         // maybe: move line points if supporting points are moved
 
-
         {
             //update lines and image to draw
             unique_lock<mutex> lock(mMutexLines);
+//            mvLines.clear();
+//            std::vector<LineSegment>(mvLines).swap(mvLines);
             mvLines = lines;
-            mImLines = imGray;
+            imGray.copyTo(mImLines);
         }
 
-        pKF->SetErase();
-
+        return vPOnLine;
     }
 
-    vector<LineSegment> Modeler::DetectLineSegments(cv::Mat im) {
+    std::vector<LineSegment> Modeler::DetectLineSegments(cv::Mat& im) {
         int width, height;
         unsigned char *srcImg;
         int noLines;
@@ -191,7 +252,7 @@ namespace ORB_SLAM2 {
 
         LS *lines = DetectLinesByED(srcImg, width, height, &noLines);
 
-        vector<LineSegment> vLines;
+        std::vector<LineSegment> vLines;
         for (int k = 0; k < noLines; k++) {
             LineSegment line(lines + k);
             vLines.push_back(line);
@@ -230,8 +291,6 @@ namespace ORB_SLAM2 {
     }
 
     void Modeler::AddKeyFrameEntry(KeyFrame* pKF){
-        unique_lock<mutex> lock(mMutexTranscript);
-
         if(pKF->isBad())
             return;
 
@@ -239,10 +298,23 @@ namespace ORB_SLAM2 {
         pKF->SetNotErase();
 
         if (mbFirstKeyFrame) {
+            unique_lock<mutex> lock(mMutexTranscript);
             mTranscriptInterface.addFirstKeyFrameInsertionEntry(pKF);
             mbFirstKeyFrame = false;
         } else {
+            unique_lock<mutex> lock(mMutexTranscript);
+
+//            auto t1 = std::chrono::high_resolution_clock::now();
+//            std::vector<cv::Point3f> vPOnLine = GetPointsOnLineSegments(pKF);
+//            auto t2 = std::chrono::high_resolution_clock::now();
+//            std::cout << "GetPointsOnLineSegments() took "
+//                      << std::chrono::duration_cast<std::chrono::milliseconds>(t2-t1).count()
+//                      << " milliseconds\n";
+//
+//            mTranscriptInterface.addKeyFrameInsertionWithLinesEntry(pKF,vPOnLine);
+
             mTranscriptInterface.addKeyFrameInsertionEntry(pKF);
+
         }
 
         AddTexture(pKF);
@@ -293,6 +365,7 @@ namespace ORB_SLAM2 {
         {
             {
                 unique_lock<mutex> lock2(mMutexTranscript);
+                mTranscriptInterface.writeToFile("sfmtranscript_orbslam.txt");
                 mTranscriptInterface.addResetEntry();
                 //TODO: fix crash when initialize again after reset
 //            RunRemainder();
@@ -398,12 +471,12 @@ namespace ORB_SLAM2 {
 
 
     // get last n keyframes for texturing
-    vector<pair<cv::Mat,TextureFrame>> Modeler::GetTextures(int n)
+    std::vector<pair<cv::Mat,TextureFrame>> Modeler::GetTextures(int n)
     {
         unique_lock<mutex> lock(mMutexTexture);
         unique_lock<mutex> lock2(mMutexFrame);
         int nLastKF = mdTextureQueue.size() - 1;
-        vector<pair<cv::Mat,TextureFrame>> imAndTexFrame;
+        std::vector<pair<cv::Mat,TextureFrame>> imAndTexFrame;
         // n most recent KFs
         for (int i = 0; i < n && i <= nLastKF; i++){
             TextureFrame texFrame = mdTextureQueue[std::max(0,nLastKF-i)];
@@ -431,9 +504,9 @@ namespace ORB_SLAM2 {
             cv::line(im, line.mStart, line.mEnd, cv::Scalar(0,255,0));
 
             // draw points on line segment
-            vector<MapPoint*> vpMP = line.mvpMP;
-            for (size_t j = 0; j < vpMP.size(); j++){
-                MapPoint * pMP = vpMP[j];
+            std::map<MapPoint*,float> mpMP = line.mmpMPProj;
+            for (std::map<MapPoint*, float>::iterator it = mpMP.begin(); it != mpMP.end(); it++){
+                MapPoint * pMP = it->first;
                 cv::Point2f pt = line.mpRefKF->ProjectPointOnCamera(pMP);
                 const float r = 5;
                 cv::Point2f pt1,pt2;

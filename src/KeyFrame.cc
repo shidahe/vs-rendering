@@ -685,5 +685,34 @@ namespace ORB_SLAM2
         return xy;
     }
 
+    Map* KeyFrame::GetMap() {
+        return mpMap;
+    }
+
+    KeyFrame::KeyFrame(KeyFrame *pKF):
+            mnFrameId(pKF->mnFrameId), mTimeStamp(pKF->mTimeStamp), mnGridCols(pKF->mnGridCols), mnGridRows(pKF->mnGridRows),
+            mfGridElementWidthInv(pKF->mfGridElementWidthInv), mfGridElementHeightInv(pKF->mfGridElementHeightInv),
+            mnTrackReferenceForFrame(pKF->mnTrackReferenceForFrame), mnFuseTargetForKF(pKF->mnFuseTargetForKF),
+            mnBALocalForKF(pKF->mnBALocalForKF), mnBAFixedForKF(pKF->mnBAFixedForKF),
+            mnLoopQuery(pKF->mnLoopQuery), mnLoopWords(pKF->mnLoopWords), mnRelocQuery(pKF->mnRelocQuery),
+            mnRelocWords(pKF->mnRelocWords), mnBAGlobalForKF(pKF->mnBAGlobalForKF),
+            fx(pKF->fx), fy(pKF->fy), cx(pKF->cx), cy(pKF->cy), invfx(pKF->invfx), invfy(pKF->invfy),
+            mbf(pKF->mbf), mb(pKF->mb), mThDepth(pKF->mThDepth), N(pKF->N), mvKeys(pKF->mvKeys), mvKeysUn(pKF->mvKeysUn),
+            mvuRight(pKF->mvuRight), mvDepth(pKF->mvDepth), mDescriptors(pKF->mDescriptors.clone()),
+            mBowVec(pKF->mBowVec), mFeatVec(pKF->mFeatVec), mnScaleLevels(pKF->mnScaleLevels), mfScaleFactor(pKF->mfScaleFactor),
+            mfLogScaleFactor(pKF->mfLogScaleFactor), mvScaleFactors(pKF->mvScaleFactors), mvLevelSigma2(pKF->mvLevelSigma2),
+            mvInvLevelSigma2(pKF->mvInvLevelSigma2), mnMinX(pKF->mnMinX), mnMinY(pKF->mnMinY), mnMaxX(pKF->mnMaxX),
+            mnMaxY(pKF->mnMaxY), mK(pKF->mK), mvpMapPoints(pKF->mvpMapPoints), mpKeyFrameDB(pKF->mpKeyFrameDB),
+            mpORBvocabulary(pKF->mpORBvocabulary), mbFirstConnection(pKF->mbFirstConnection), mpParent(pKF->mpParent),
+            mbNotErase(pKF->mbNotErase),
+            mbToBeErased(pKF->mbToBeErased), mbBad(pKF->mbBad), mHalfBaseline(pKF->mHalfBaseline), mpMap(pKF->mpMap)
+    {
+        mnId=pKF->mnId;
+
+        mGrid=pKF->mGrid;
+
+        SetPose(pKF->GetPose());
+    }
+
 
 } //namespace ORB_SLAM

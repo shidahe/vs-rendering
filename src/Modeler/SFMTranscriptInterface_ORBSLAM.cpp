@@ -174,11 +174,16 @@ void SFMTranscriptInterface_ORBSLAM::addFirstKeyFrameInsertionEntry(KeyFrame *k)
         nCamIndex = m_mKeyFrame_Index.size();
         m_mKeyFrame_Index[k] = nCamIndex;
 
+        // Add the keyframe to the coorespondence map
+        vector<MapPoint *> vMP;
+        m_mKeyFrame_MapPoint[k] = vMP;
+
         std::set<MapPoint*> mvpMapPoints = k->GetMapPoints();
         // Process new points and visibility information in this KF
         for(std::set<MapPoint*>::iterator it = mvpMapPoints.begin(); it != mvpMapPoints.end(); it++){
             MapPoint * point = *it;
-
+            if(point->isBad())
+                continue;
             if(m_mMapPoint_Index.count(point) == 0){
                 // It's a new point:
                 cv::Mat mWorldPos = point->GetWorldPos();
@@ -194,6 +199,9 @@ void SFMTranscriptInterface_ORBSLAM::addFirstKeyFrameInsertionEntry(KeyFrame *k)
                 // Add a record of the new point to internal map.
                 nPointIndex = m_mMapPoint_Index.size();
                 m_mMapPoint_Index[point] = nPointIndex;
+
+                // Add the correspondence to map
+                m_mKeyFrame_MapPoint[k].push_back(point);
             }
             else
                 throw dlovi::Exception("The FIRST KF observed a point that was already added."); // That's bad!  Points are only added through KF-addition.
@@ -239,10 +247,11 @@ void SFMTranscriptInterface_ORBSLAM::addKeyFrameInsertionEntry(KeyFrame *k){
         std::set<MapPoint*> mvpMapPoints = k->GetMapPoints();
         for(std::set<MapPoint*>::iterator it = mvpMapPoints.begin(); it != mvpMapPoints.end(); it++){
             MapPoint * point = *it;
-
+            if(point->isBad())
+                continue;
             if(m_mMapPoint_Index.count(point) == 0){
                 // add confident points
-                if (point->Observations() < 5)
+                if (point->Observations() < 3)
                     continue;
 
                 // check if it has valid observation first
@@ -306,63 +315,8 @@ void SFMTranscriptInterface_ORBSLAM::addKeyFrameInsertionEntry(KeyFrame *k){
     }
 }
 
-void SFMTranscriptInterface_ORBSLAM::addFirstKeyFrameInsertionEntryAndDetectLines(KeyFrame *k){
-    try{
-        std::stringstream ssTmp;
-        dlovi::Matrix matNewCam(3, 1);
-        dlovi::Matrix matNewPoint(3, 1);
-        int nPointIndex, nCamIndex;
 
-        if(m_mKeyFrame_Index.count(k) > 0)
-            throw dlovi::Exception("KeyFrame already has a record.  Double addition.");
-
-        // // TODO: Instead of inverting the whole transform, we should be able to just use the negative translation.
-        // GetPoseInverse, seems camera position need to be inversed
-        cv::Mat se3WfromC = k->GetPoseInverse();
-        matNewCam(0) = se3WfromC.at<float>(0,3);
-        matNewCam(1) = se3WfromC.at<float>(1,3);
-        matNewCam(2) = se3WfromC.at<float>(2,3);
-        ssTmp << "new cam: [" << matNewCam(0) << "; " << matNewCam(1) << "; " << matNewCam(2) << "] {";
-        m_SFMTranscript.addLine(ssTmp.str()); ssTmp.str("");
-
-        // Add a record of the new camera to internal map.
-        nCamIndex = m_mKeyFrame_Index.size();
-        m_mKeyFrame_Index[k] = nCamIndex;
-
-        std::set<MapPoint*> mvpMapPoints = k->GetMapPoints();
-        // Process new points and visibility information in this KF
-        for(std::set<MapPoint*>::iterator it = mvpMapPoints.begin(); it != mvpMapPoints.end(); it++){
-            MapPoint * point = *it;
-
-            if(m_mMapPoint_Index.count(point) == 0){
-                // It's a new point:
-                cv::Mat mWorldPos = point->GetWorldPos();
-                matNewPoint(0) = mWorldPos.at<float>(0);
-                matNewPoint(1) = mWorldPos.at<float>(1);
-                matNewPoint(2) = mWorldPos.at<float>(2);
-
-                ssTmp << "new point: [" << matNewPoint(0) << "; " << matNewPoint(1) << "; " << matNewPoint(2) << "]";
-                // Append this point's vis list with special handling.  (Point initialized from epipolar search: > 1 KF, but only 1 KF in our internal structures.)
-                ssTmp << ", 0"; // KF 0 observed it.
-                m_SFMTranscript.addLine(ssTmp.str()); ssTmp.str("");
-
-                // Add a record of the new point to internal map.
-                nPointIndex = m_mMapPoint_Index.size();
-                m_mMapPoint_Index[point] = nPointIndex;
-            }
-            else
-                throw dlovi::Exception("The FIRST KF observed a point that was already added."); // That's bad!  Points are only added through KF-addition.
-        }
-
-        // Close this new-KF entry in the transcript
-        m_SFMTranscript.addLine("}");
-    }
-    catch(std::exception & ex){
-        dlovi::Exception ex2(ex.what()); ex2.tag("SFMTranscriptInterface_ORBSLAM", "addFirstKeyFrameInsertionEntry"); cerr << ex2.what() << endl; //ex2.raise();
-    }
-}
-
-void SFMTranscriptInterface_ORBSLAM::addKeyFrameInsertionEntryAndDetectLines(KeyFrame *k){
+void SFMTranscriptInterface_ORBSLAM::addKeyFrameInsertionWithLinesEntry(KeyFrame *k, std::vector<cv::Point3f>& vP) {
     try{
         std::stringstream ssTmp;
         dlovi::Matrix matNewCam(3, 1);
@@ -384,74 +338,94 @@ void SFMTranscriptInterface_ORBSLAM::addKeyFrameInsertionEntryAndDetectLines(Key
         // Add a record of the new camera to internal map.
         nCamIndex = m_mKeyFrame_Index.size();
         m_mKeyFrame_Index[k] = nCamIndex;
+//        nCamIndex = m_mKeyFrame_Index[k];
 
-        // Add the keyframe to the coorespondence map
-        vector<MapPoint *> vMP;
-        m_mKeyFrame_MapPoint[k] = vMP;
+//        // Process new points and visibility information in this KF
+//        std::set<int> sVisListExcludingNewPoints;
+//        std::set<MapPoint*> mvpMapPoints = k->GetMapPoints();
+//        for(std::set<MapPoint*>::iterator it = mvpMapPoints.begin(); it != mvpMapPoints.end(); it++){
+//            MapPoint * point = *it;
+//            if(point->isBad())
+//                continue;
+//            if(m_mMapPoint_Index.count(point) == 0){
+//                // add confident points
+//                if (point->Observations() < 3)
+//                    continue;
+//
+//                // check if it has valid observation first
+//                std::map<KeyFrame*, size_t> mObservations = point->GetObservations();
+//
+//                bool hasObservation = false;
+//                for(std::map<KeyFrame *,size_t>::iterator it2 = mObservations.begin(); it2 != mObservations.end(); it2++){
+//                    if(m_mKeyFrame_Index.count(it2->first) != 0) {
+//                        hasObservation = true;
+//                        break;
+//                    }
+//                }
+//
+//                // It's a new point:
+//                cv::Mat mWorldPos = point->GetWorldPos();
+//                matNewPoint(0) = mWorldPos.at<float>(0);
+//                matNewPoint(1) = mWorldPos.at<float>(1);
+//                matNewPoint(2) = mWorldPos.at<float>(2);
+//
+//                ssTmp << "new point: [" << matNewPoint(0) << "; " << matNewPoint(1) << "; " << matNewPoint(2)
+//                      << "]";
+//
+//                if (hasObservation) {
+//                    // Append this point's vis list.  (Point initialized from epipolar search: > 1 KF)
+//                    for (std::map<KeyFrame *, size_t>::iterator it2 = mObservations.begin();
+//                         it2 != mObservations.end(); it2++) {
+//                        if (m_mKeyFrame_Index.count(it2->first) != 0) {
+//                            ssTmp << ", " << m_mKeyFrame_Index[it2->first];
+//                        }
+//                    }
+//                } else {
+//                    ssTmp << ", " << nCamIndex;
+//                }
+//
+//                m_SFMTranscript.addLine(ssTmp.str()); ssTmp.str("");
+//
+//                // Add a record of the new point to internal map.
+//                nPointIndex = m_mMapPoint_Index.size();
+//                m_mMapPoint_Index[point] = nPointIndex;
+//            }
+//            else{
+//                // It's not a new point:
+//                sVisListExcludingNewPoints.insert(m_mMapPoint_Index[point]); // To be added after the new points in the following loop
+//            }
+//        }
 
-        // Process new points and visibility information in this KF
-        std::set<int> sVisListExcludingNewPoints;
-        std::set<MapPoint*> mvpMapPoints = k->GetMapPoints();
-        for(std::set<MapPoint*>::iterator it = mvpMapPoints.begin(); it != mvpMapPoints.end(); it++){
-            MapPoint * point = *it;
+        for(std::vector<cv::Point3f>::iterator it = vP.begin(); it != vP.end(); it++){
+            cv::Point3f pointcv = *it;
 
-            if(m_mMapPoint_Index.count(point) == 0){
-                // add confident points
-                if (point->Observations() < 5)
-                    continue;
+            const cv::Mat pos = (cv::Mat_<float>(3, 1) << pointcv.x, pointcv.y, pointcv.z);
+            MapPoint* point = new MapPoint(pos, k, k->GetMap());
 
-                // check if it has valid observation first
-                std::map<KeyFrame*, size_t> mObservations = point->GetObservations();
+            cv::Mat mWorldPos = point->GetWorldPos();
+            matNewPoint(0) = mWorldPos.at<float>(0);
+            matNewPoint(1) = mWorldPos.at<float>(1);
+            matNewPoint(2) = mWorldPos.at<float>(2);
+//            matNewPoint(0) = point.x;
+//            matNewPoint(1) = point.y;
+//            matNewPoint(2) = point.z;
 
-                bool hasObservation = false;
-                for(std::map<KeyFrame *,size_t>::iterator it2 = mObservations.begin(); it2 != mObservations.end(); it2++){
-                    if(m_mKeyFrame_Index.count(it2->first) != 0) {
-                        hasObservation = true;
-                        break;
-                    }
-                }
+            ssTmp << "new point: [" << matNewPoint(0) << "; " << matNewPoint(1) << "; " << matNewPoint(2)
+                  << "]";
+            ssTmp << ", " << nCamIndex;
 
-                // It's a new point:
-                cv::Mat mWorldPos = point->GetWorldPos();
-                matNewPoint(0) = mWorldPos.at<float>(0);
-                matNewPoint(1) = mWorldPos.at<float>(1);
-                matNewPoint(2) = mWorldPos.at<float>(2);
-
-                ssTmp << "new point: [" << matNewPoint(0) << "; " << matNewPoint(1) << "; " << matNewPoint(2)
-                      << "]";
-
-                if (hasObservation) {
-                    // Append this point's vis list.  (Point initialized from epipolar search: > 1 KF)
-                    for (std::map<KeyFrame *, size_t>::iterator it2 = mObservations.begin();
-                         it2 != mObservations.end(); it2++) {
-                        if (m_mKeyFrame_Index.count(it2->first) != 0) {
-                            ssTmp << ", " << m_mKeyFrame_Index[it2->first];
-                        }
-                    }
-                } else {
-                    ssTmp << ", " << nCamIndex;
-                }
-
-                m_SFMTranscript.addLine(ssTmp.str()); ssTmp.str("");
-
-                // Add a record of the new point to internal map.
-                nPointIndex = m_mMapPoint_Index.size();
-                m_mMapPoint_Index[point] = nPointIndex;
-
-                // Add the correspondence to map
-                m_mKeyFrame_MapPoint[k].push_back(point);
-            }
-            else{
-                // It's not a new point:
-                sVisListExcludingNewPoints.insert(m_mMapPoint_Index[point]); // To be added after the new points in the following loop
-            }
-        }
-
-        // Log all the visibility-ray observations for this KF excluding the newly added points
-        for(std::set<int>::iterator it = sVisListExcludingNewPoints.begin(); it != sVisListExcludingNewPoints.end(); it++){
-            ssTmp << "observation: " << *it;
             m_SFMTranscript.addLine(ssTmp.str()); ssTmp.str("");
+            // Add a record of the new point to internal map.
+            nPointIndex = m_mMapPoint_Index.size();
+            m_mMapPoint_Index[point] = nPointIndex;
+
         }
+
+//        // Log all the visibility-ray observations for this KF excluding the newly added points
+//        for(std::set<int>::iterator it = sVisListExcludingNewPoints.begin(); it != sVisListExcludingNewPoints.end(); it++){
+//            ssTmp << "observation: " << *it;
+//            m_SFMTranscript.addLine(ssTmp.str()); ssTmp.str("");
+//        }
 
         // Close this new-KF entry in the transcript
         m_SFMTranscript.addLine("}");
@@ -565,7 +539,7 @@ void SFMTranscriptInterface_ORBSLAM::UpdateTranscriptToProcess(){
     }
 }
 
-vector<MapPoint *> SFMTranscriptInterface_ORBSLAM::GetNewPoints(KeyFrame *pKF) {
+std::vector<MapPoint *> SFMTranscriptInterface_ORBSLAM::GetNewPoints(KeyFrame *pKF) {
     try{
         return m_mKeyFrame_MapPoint[pKF];
     }
