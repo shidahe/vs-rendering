@@ -32,7 +32,7 @@ public:
     void addFirstKeyFrameInsertionEntry(KeyFrame *k);
     void addKeyFrameInsertionEntry(KeyFrame *k);
 
-    void addKeyFrameInsertionWithLinesEntry(KeyFrame *k, std::vector<cv::Point3f>& vP);
+    void addKeyFrameInsertionWithLinesEntry(KeyFrame *k, KeyFrame *kCopy, std::vector<cv::Point3f>& vP);
 
     void addBundleAdjustmentEntry(std::set<KeyFrame *> & sAdjustSet, std::set<MapPoint *> & sMapPoints);
     void writeToFile(const std::string & strFileName) const;

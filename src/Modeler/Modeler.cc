@@ -95,7 +95,7 @@ namespace ORB_SLAM2 {
         {
             unique_lock<mutex> lock(mMutexTranscript);
             KeyFrame* pKFcopy = new KeyFrame(pKF);
-            mTranscriptInterface.addKeyFrameInsertionWithLinesEntry(pKFcopy,vPOnLine);
+            mTranscriptInterface.addKeyFrameInsertionWithLinesEntry(pKF,pKFcopy,vPOnLine);
         }
 
         pKF->SetErase();
@@ -162,7 +162,7 @@ namespace ORB_SLAM2 {
             for (std::set<MapPoint*>::iterator it = vpMP.begin(); it != vpMP.end(); it++) {
                 if ((*it)->isBad())
                     continue;
-                if ((*it)->Observations() < 3)
+                if ((*it)->Observations() < 5)
                     continue;
 
                 cv::Point2f xy = pKF->ProjectPointOnCamera(*it);
@@ -176,7 +176,7 @@ namespace ORB_SLAM2 {
                 }
             }
 
-            if (line.mmpMPProj.size() >= 3) {
+            if (line.mmpMPProj.size() >= 2) {
                 //TODO: using the first and last at this time, probably change to svd
                 cv::Point3f p1, p2;
                 cv::Mat p1mat = line.mmpMPProj.begin()->first->GetWorldPos();
@@ -201,7 +201,7 @@ namespace ORB_SLAM2 {
                 cout << "dt" << dt << endl;
                 cout << "start3f" << start3f << endl;
 
-                for (float i = 0.2; i < 1.0; i += 0.3) {
+                for (float i = 0.2; i <= 0.8; i += 0.1) {
                     cv::Point3f currP = start3f + i * dt;
                     cout << "currP" << currP << endl;
                     vPOnLine.push_back(currP);
@@ -209,7 +209,7 @@ namespace ORB_SLAM2 {
             }
         }
 
-        cout << vPOnLine.size() << " points are generated from " << vPOnLine.size()/3 << " lines. " << lines.size()
+        cout << vPOnLine.size() << " points are generated from " << vPOnLine.size()/7 << " lines. " << lines.size()
              << " lines are detected from keyframe with " << pKF->TrackedMapPoints(3)  << " tracked points." << endl;
 
 
