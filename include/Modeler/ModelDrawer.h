@@ -15,7 +15,7 @@
 #include <vector>
 #include "Modeler/Matrix.h"
 #include "Modeler/Modeler.h"
-#include "Modeler/ModelFrame.h"
+#include "Modeler/TextureFrame.h"
 
 namespace ORB_SLAM2
 {

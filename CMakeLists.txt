@@ -58,6 +58,8 @@ include_directories(
         ${PROJECT_SOURCE_DIR}/include
         ${EIGEN3_INCLUDE_DIR}
         ${Pangolin_INCLUDE_DIRS}
+        ${PROJECT_SOURCE_DIR}/Thirdparty/Line3Dpp
+        ${PROJECT_SOURCE_DIR}/Thirdparty/Line3Dpp/build
 )
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/lib)
@@ -94,7 +96,7 @@ add_library(${PROJECT_NAME} SHARED
         src/Modeler/SFMTranscriptInterface_ORBSLAM.cpp
         src/Modeler/Modeler.cc
         src/Modeler/ModelDrawer.cc
-        src/Modeler/ModelFrame.cc
+        src/Modeler/TextureFrame.cc
         )
 
 # add lapack blas link
@@ -105,6 +107,7 @@ target_link_libraries(${PROJECT_NAME}
         ${PROJECT_SOURCE_DIR}/Thirdparty/DBoW2/lib/libDBoW2.so
         ${PROJECT_SOURCE_DIR}/Thirdparty/g2o/lib/libg2o.so
         ${PROJECT_SOURCE_DIR}/Thirdparty/EDLines/EDLinesLib.a
+        ${PROJECT_SOURCE_DIR}/Thirdparty/Line3Dpp/build/libline3Dpp.so
         lapack blas
         )
 

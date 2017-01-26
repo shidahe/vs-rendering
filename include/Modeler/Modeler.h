@@ -7,7 +7,7 @@
 #include "Modeler/SFMTranscriptInterface_ORBSLAM.h"
 #include "Modeler/SFMTranscriptInterface_Delaunay.h"
 #include "Modeler/ModelDrawer.h"
-#include "Modeler/ModelFrame.h"
+#include "Modeler/TextureFrame.h"
 
 #include "Thirdparty/EDLines/LS.h"
 

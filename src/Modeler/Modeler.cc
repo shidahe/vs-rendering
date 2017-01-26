@@ -6,10 +6,14 @@
 
 #include <chrono>
 
+// main header file for Line3D++
+#include "line3D.h"
+
 // Header files needed by EDLines
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
 /// Function prototype for DetectEdgesByED exported by EDLinesLib.a
 LS *DetectLinesByED(unsigned char *srcImg, int width, int height, int *pNoLines);
 
@@ -17,7 +21,7 @@ namespace ORB_SLAM2 {
 
     Modeler::Modeler(ModelDrawer* pModelDrawer):
             mbResetRequested(false), mbFinishRequested(false), mbFinished(true), mpModelDrawer(pModelDrawer),
-            mnLastNumLines(2), mbFirstKeyFrame(true), mnMaxTextureQueueSize(4), mnMaxFrameQueueSize(1000),
+            mnLastNumLines(2), mbFirstKeyFrame(true), mnMaxTextureQueueSize(10), mnMaxFrameQueueSize(1000),
             mnMaxToLinesQueueSize(100)
     {
         mAlgInterface.setAlgorithmRef(&mObjAlgorithm);
@@ -123,6 +127,8 @@ namespace ORB_SLAM2 {
 
         std::vector<LineSegment> lines = DetectLineSegments(imGray);
 
+        L3DPP::Line3D* Line3D = new L3DPP::Line3D(...);
+
         for(size_t indexLines = 0; indexLines < lines.size(); indexLines++){
             LineSegment& line = lines[indexLines];
             // set reference keyframe of the line segment
@@ -175,6 +181,8 @@ namespace ORB_SLAM2 {
                     line.mmpMPProj[*it] = t;
                 }
             }
+
+
 
             if (line.mmpMPProj.size() >= 2) {
                 //TODO: using the first and last at this time, probably change to svd
@@ -373,6 +381,21 @@ namespace ORB_SLAM2 {
             }
             {
                 unique_lock<mutex> lock2(mMutexTexture);
+//                {
+//                    unique_lock<mutex> lock3(mMutexFrame);
+//                    for (int i = 0; i < mnMaxTextureQueueSize; i++){
+//                        TextureFrame texFrame = mdTextureQueue[i];
+//                        std::string imname = "texKF" + std::to_string(i);
+//                        if (texFrame.mpKF != NULL){
+//                            if (texFrame.mpKF->isBad()){
+//                                imname = imname + "bad";
+//                            } else {
+//                                imname = imname + "good";
+//                            }
+//                        }
+//                        cv::imwrite(imname+".jpg", mmFrameQueue[texFrame.mFrameID]);
+//                    }
+//                }
                 mdTextureQueue.clear();
             }
             {
@@ -387,6 +410,7 @@ namespace ORB_SLAM2 {
                 unique_lock<mutex> lock2(mMutexLines);
                 mvLines.clear();
             }
+
             mbFirstKeyFrame = true;
 
             mbResetRequested=false;
