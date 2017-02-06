@@ -339,7 +339,8 @@ namespace ORB_SLAM2
             usleep(5000);
         }
 
-        pangolin::BindToContext("ORB-SLAM2: Map Viewer");
+        if(mpViewer)
+            pangolin::BindToContext("ORB-SLAM2: Map Viewer");
     }
 
     void System::SaveTrajectoryTUM(const string &filename)
