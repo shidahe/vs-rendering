@@ -31,11 +31,51 @@ namespace ORB_SLAM2 {
             mpRefKF = NULL;
         }
 
+        // obselete, not using in line-sweep
         map<MapPoint*, float> mmpMPProj;
+
         KeyFrame* mpRefKF;
         cv::Point2f mStart;
         cv::Point2f mEnd;
     };
+
+
+    class LinePoint {
+    public:
+        LinePoint(cv::Point3f p, LineSegment* mpFLS, LineSegment* mpSLS){
+            mp = p;
+            mpFirstLS = mpFLS;
+            mpSecondLS = mpSLS;
+        }
+
+        LineSegment* mpFirstLS;
+        LineSegment* mpSecondLS;
+        cv::Point3f mP;
+    };
+
+
+    class VirtualLineSegment {
+    public:
+        VirtualLineSegment(MapPoint* pMPs, MapPoint* pMPe){
+            mpMPStart = pMPs;
+            mpMPEnd = pMPe;
+            mStart = cv::Point3f(mpMPStart);
+            mEnd = cv::Point3f(mpMPEnd);
+        }
+
+        bool operator==(const VirtualLineSegment& rhs){
+            return mpMPStart == rhs.mpMPStart || mpMPEnd == rhs.mpMPEnd;
+        }
+
+        MapPoint* mpMPStart;
+        MapPoint* mpMPEnd;
+
+        cv::Point3f mStart;
+        cv::Point3f mEnd;
+
+        std::vector<LinePoint> mvLPs;
+    };
+
 
     class Modeler {
     public:
@@ -58,7 +98,7 @@ namespace ORB_SLAM2 {
         void DetectLineSegmentsLater(KeyFrame* pKF);
         std::vector<LineSegment> DetectLineSegments(cv::Mat& im);
         std::vector<cv::Point3f> GetPointsOnLineSegments(KeyFrame* pKF);
-        std::vector<cv::Point3f> GetPointsOnLineSegmentsOffline();
+        std::vector<LinePoint> GetPointsOnLineSegmentsOffline();
 
         void AddKeyFrameEntry(KeyFrame* pKF);
         void AddDeletePointEntry(MapPoint* pMP);

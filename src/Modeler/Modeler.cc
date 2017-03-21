@@ -148,7 +148,8 @@ namespace ORB_SLAM2 {
                 if ((*it)->Observations() < 5)
                     continue;
 
-                cv::Point2f xy = pKF->ProjectPointOnCamera(*it);
+                // need to test if xy > 0
+                cv::Point2f xy = pKF->ProjectPointOnCamera((*it)->GetWorldPos());
 
                 float t = max(0.0f, min(1.0f, (xy-start).dot(end-start) / l2));
                 cv::Point2f proj = start + t * (end - start);
@@ -218,9 +219,9 @@ namespace ORB_SLAM2 {
         return vPOnLine;
     }
 
-    std::vector<cv::Point3f> Modeler::GetPointsOnLineSegmentsOffline(){
+    std::vector<LinePoint> Modeler::GetPointsOnLineSegmentsOffline(){
 
-        std::vector<cv::Point3f> vPOnLine;
+        std::vector<LinePoint> vLPOnLine;
 
         std::vector<KeyFrame*> vpKF;
 
@@ -255,7 +256,6 @@ namespace ORB_SLAM2 {
 
             if (imGray.empty()) {
                 cout << "Empty image to draw line!" << endl;
-                vPOnLine.clear();
                 continue;
             }
 
@@ -264,9 +264,18 @@ namespace ORB_SLAM2 {
 
             std::vector<LineSegment> lines = DetectLineSegments(imGray);
 
+            for(size_t indexLines = 0; indexLines < lines.size(); indexLines++) {
+                LineSegment &line = lines[indexLines];
+                // set reference keyframe of the line segment
+                line.mpRefKF = pKF;
+            }
+
             mvLSpKF[pKF] = lines;
 
         }
+
+        // all virtual line segments
+        std::set<VirtualLineSegment> sVLSAll;
 
         // for each keyframe, get map points and match against every other keyframe
         for (size_t indexKF = 0; indexKF < vpKF.size(); indexKF++){
@@ -280,7 +289,7 @@ namespace ORB_SLAM2 {
                 std::set<MapPoint*> vpMPMatch = pKFMatch->GetMapPoints();
 
                 // all matched points between these two keyframes
-                std::vector<MapPoint*> vpMPAll;
+                std::vector<MapPoint*> vpMPMatched;
 
                 // find all matched points in two keyframes
                 for (std::set<MapPoint*>::iterator it = vpMP.begin(); it != vpMP.end(); it++){
@@ -299,18 +308,159 @@ namespace ORB_SLAM2 {
                         continue;
 
                     // if a match found
-                    vpMPAll.push_back(*it);
+                    vpMPMatched.push_back(*it);
                 }
 
+                // all combinations of pairs of matched points between two keyframes
+                std::vector<VirtualLineSegment> vVLS;
+
+                for (size_t indexMPStart = 0; indexMPStart < vpMPMatched.size(); indexMPStart++){
+                    for (size_t indexMPEnd = indexMPStart+1; indexMPEnd < vpMPMatched.size(); indexMPEnd++) {
+                        VirtualLineSegment vls(vpMPMatched[indexMPStart], vpMPMatched[indexMPEnd]);
+                        //TODO:: MAYBE avoid adding duplicate virtual line segment
+                        vVLS.push_back(vls);
+                    }
+                }
+
+                // for each virtual line segment, compute the intersection of its projection and the line segments
+                for (size_t indexVLS = 0; indexVLS < vVLS.size(); indexVLS++){
+
+                    VirtualLineSegment& vls = vVLS[indexVLS];
+
+                    cv::Point2f startVLS2f = pKF->ProjectPointOnCamera(vls.mpMPStart->GetWorldPos());
+                    cv::Point2f endVLS2f = pKF->ProjectPointOnCamera(vls.mpMPEnd->GetWorldPos());
+
+                    // test if the virtual line segment is in image, this should be always be false
+                    if (startVLS2f.x < 0 || startVLS2f.y < 0 || endVLS2f.x < 0 || endVLS2f.y < 0)
+                        continue;
+
+                    cv::Point3f startVLS3f(startVLS2f.x, startVLS2f.y, 1.0);
+                    cv::Point3f endVLS3f(endVLS2f.x, startVLS2f.y, 1.0);
+
+                    cv::Point3f crossVLS = startVLS3f.cross(endVLS3f);
+
+                    //TODO: avoid compute intersections in the same keyframe
+                    std::vector<LineSegment> vLS = mvLSpKF[pKF];
 
 
+                    for (size_t indexLS = 0; indexLS < vLS.size(); indexLS++){
+
+                        LineSegment& line = vLS[indexLS];
+
+                        cv::Point2f startLS2f = line.mStart;
+                        cv::Point2f endLS2f = line.mEnd;
+
+                        cv::Point3f startLS3f(startLS2f.x, startLS2f.y, 1.0);
+                        cv::Point3f endLS3f(endLS2f.x, startLS2f.y, 1.0);
+
+                        cv::Point3f crossLS = startLS3f.cross(endLS3f);
+
+                        cv::Point3f intersect3f = crossVLS.cross(crossLS);
+                        cv::Point2f intersect2f(intersect3f.x/intersect3f.z, intersect3f.y/intersect3f.z);
+
+                        bool betweenVLSx = (intersect2f.x - startVLS2f.x) * (intersect2f.x - endVLS2f.x) <= 0;
+                        bool betweenVLSy = (intersect2f.y - startVLS2f.y) * (intersect2f.y - endVLS2f.y) <= 0;
+
+                        bool betweenLSx = (intersect2f.x - startLS2f.x) * (intersect2f.x - endLS2f.x) <= 0;
+                        bool betweenLSy = (intersect2f.y - startLS2f.y) * (intersect2f.y - endLS2f.y) <= 0;
+
+                        // if not intersected
+                        if ( !(betweenVLSx && betweenVLSy && betweenLSx && betweenLSy) )
+                            continue;
+
+                        // intersection found, project it to 3d and to second keyframe
+                        cv::Mat TwcKF = pKF->GetPoseInverse();
+                        cv::Mat RwcKF = TwcKF.rowRange(0,3).colRange(0,3);
+                        cv::Mat twcKF = TwcKF.rowRange(0,3).col(3);
+                        float PcX = (intersect2f.x - pKF->cx) / pKF->fx;
+                        float PcY = (intersect2f.y - pKF->cy) / pKF->fy;
+
+                        cv::Mat Pc = cv::Mat(3, 1, CV_32F);
+                        Pc.at<float>(0) = PcX;
+                        Pc.at<float>(1) = PcY;
+                        Pc.at<float>(2) = 1.0;
+
+                        // position of the line-crossing in world coordinate
+                        cv::Mat Pw = RwcKF * Pc + twcKF;
+
+                        // compute intersection between the ray from camera center towards line-crossing and the 3D VLS
+                        cv::Mat hPw = cv::Mat(4, 1, CV_32F);
+                        hPw.at<float>(0) = Pw.at<float>(0);
+                        hPw.at<float>(1) = Pw.at<float>(1);
+                        hPw.at<float>(2) = Pw.at<float>(2);
+                        hPw.at<float>(3) = 1.0;
+
+                        cv::Mat hOw = cv::Mat(4, 1, CV_32F);
+                        hOw.at<float>(0) = twcKF.at<float>(0);
+                        hOw.at<float>(1) = twcKF.at<float>(1);
+                        hOw.at<float>(2) = twcKF.at<float>(2);
+                        hOw.at<float>(3) = 1.0;
+
+                        cv::Mat crossPO = hPw.cross(hOw);
+
+                        cv::Mat hStart = cv::Mat(4, 1, CV_32F);
+                        hStart.at<float>(0) = vls.mStart.x;
+                        hStart.at<float>(1) = vls.mStart.y;
+                        hStart.at<float>(2) = vls.mStart.z;
+                        hStart.at<float>(3) = 1.0;
+
+                        cv::Mat hEnd = cv::Mat(4, 1, CV_32F);
+                        hEnd.at<float>(0) = vls.mEnd.x;
+                        hEnd.at<float>(1) = vls.mEnd.y;
+                        hEnd.at<float>(2) = vls.mEnd.z;
+                        hEnd.at<float>(3) = 1.0;
+
+                        cv::Mat crossSE = hStart.cross(hEnd);
+
+                        // intersection of ray and VLS, should always be on the VLS
+                        cv::Mat hIntersect = crossSE.cross(crossPO);
+
+                        cv::Mat intersect3D = cv::Mat(3, 1, CV_32F);
+                        intersect3D.at<float>(0) = hIntersect.at<float>(0) / hIntersect.at<float>(3);
+                        intersect3D.at<float>(1) = hIntersect.at<float>(1) / hIntersect.at<float>(3);
+                        intersect3D.at<float>(2) = hIntersect.at<float>(2) / hIntersect.at<float>(3);
+
+                        // project 3D intersection onto the second keyframe
+                        cv::Point2f lineCrossMatch = pKFMatch->ProjectPointOnCamera(intersect3D);
+
+                        // loop through line segments in the second keyframe, find if the point is on a line segment
+                        std::vector<LineSegment> vLSMatch = mvLSpKF[pKFMatch];
+                        for (size_t indexLSMatch = 0; indexLSMatch < vLSMatch.size(); indexLSMatch++){
+                            LineSegment& lineMatch = vLSMatch[indexLSMatch];
+                            cv::Point2f startLSMatch2f = lineMatch.mStart;
+                            cv::Point2f endLSMatch2f = lineMatch.mEnd;
+                            // if the point is on a line segment
+                            double distLCS = cv::norm(lineCrossMatch-startLSMatch2f);
+                            double distLCE = cv::norm(lineCrossMatch-endLSMatch2f);
+                            double distSE = cv::norm(startLSMatch2f-endLSMatch2f);
+                            // the distance is almost the same
+                            if (std::abs(distLCS + distLCE - distSE) < std::numeric_limits<double>::epsilon()){
+                                // there is a match, save it in the virtual line segment
+                                LinePoint lp(cv::Point3f(intersect3D),&line,&lineMatch);
+                                vls.mvLPs.push_back(lp);
+                            }
+                        }
+
+                    }
+
+                }
+
+                // save all virtual line segments matched in the two keyframes into the set
+                sVLSAll.insert(vVLS.begin(),vVLS.end());
+
+            }
+
+        }
+
+        // get line points out of virtual line segments
+        for (std::set<VirtualLineSegment>::iterator it = sVLSAll.begin(); it != sVLSAll.end(); it++){
+            for (size_t indexLP = 0; indexLP < (*it).mvLPs.size(); indexLP++){
+                vLPOnLine.push_back((*it).mvLPs[indexLP]);
             }
         }
 
 
-
-
-        return vPOnLine;
+        return vLPOnLine;
     }
 
     std::vector<LineSegment> Modeler::DetectLineSegments(cv::Mat& im) {

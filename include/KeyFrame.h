@@ -117,7 +117,7 @@ public:
     }
 
     //carv:: new methods
-    cv::Point2f ProjectPointOnCamera(MapPoint* pMP);
+    cv::Point2f ProjectPointOnCamera(cv::Mat Pw);
     Map* GetMap();
     KeyFrame(KeyFrame* pKF);
 

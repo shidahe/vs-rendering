@@ -662,11 +662,10 @@ namespace ORB_SLAM2
         return vDepths[(vDepths.size()-1)/q];
     }
 
-    cv::Point2f KeyFrame::ProjectPointOnCamera(MapPoint* pMP){
+    cv::Point2f KeyFrame::ProjectPointOnCamera(cv::Mat Pw){
         cv::Point2f xy;
         cv::Mat Rcw = Tcw.rowRange(0,3).colRange(0,3);
         cv::Mat tcw = Tcw.rowRange(0,3).col(3);
-        cv::Mat Pw = pMP->GetWorldPos();
         cv::Mat Pc = Rcw * Pw + tcw;
         float &PcX = Pc.at<float>(0);
         float &PcY = Pc.at<float>(1);
