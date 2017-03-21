@@ -7,7 +7,7 @@
 #include <chrono>
 
 // main header file for Line3D++
-#include "line3D.h"
+//#include "line3D.h"
 
 // Header files needed by EDLines
 #include <stdio.h>
@@ -21,7 +21,7 @@ namespace ORB_SLAM2 {
 
     Modeler::Modeler(ModelDrawer* pModelDrawer):
             mbResetRequested(false), mbFinishRequested(false), mbFinished(true), mpModelDrawer(pModelDrawer),
-            mnLastNumLines(2), mbFirstKeyFrame(true), mnMaxTextureQueueSize(10), mnMaxFrameQueueSize(1000),
+            mnLastNumLines(2), mbFirstKeyFrame(true), mnMaxTextureQueueSize(10), mnMaxFrameQueueSize(10000),
             mnMaxToLinesQueueSize(100)
     {
         mAlgInterface.setAlgorithmRef(&mObjAlgorithm);
@@ -127,36 +127,13 @@ namespace ORB_SLAM2 {
 
         std::vector<LineSegment> lines = DetectLineSegments(imGray);
 
-        L3DPP::Line3D* Line3D = new L3DPP::Line3D(...);
+        //       L3DPP::Line3D* Line3D = new L3DPP::Line3D(...);
 
         for(size_t indexLines = 0; indexLines < lines.size(); indexLines++){
             LineSegment& line = lines[indexLines];
             // set reference keyframe of the line segment
             line.mpRefKF = pKF;
 
-//            std::cout << "Lines: " << indexLines+1 << ":" << lines.size() << "(" << line.mStart.x << ","
-//                      << line.mStart.y << ") (" << line.mEnd.x << "," << line.mEnd.y << ")" << std::endl;
-
-            //calculate distance map of lines
-//        for (size_t indexLines = 0; indexLines < lines.size(); indexLines++){
-            //assign pixels on lines to 255
-//            cv::Point2d start(lines[indexLines].sx, lines[indexLines].sy);
-//            cv::Point2d end(lines[indexLines].ex, lines[indexLines].ey);
-//            cv::Mat binImage;
-//            binImage = cv::Mat::zeros(imGray.size(), CV_8UC1);
-//            cv::line(binImage, lines[indexLines].mStart, lines[indexLines].mEnd, cv::Scalar(255));
-//            cv::Mat dist;
-//            cv::distanceTransform(binImage, dist, CV_DIST_L2, 3);
-
-//            normalize(dist, dist, 0, 1., cv::NORM_MINMAX);
-//            cv::imwrite("distance_transfrom.jpg",dist);
-
-            //project points that were newly added when the keyframe entry was added, to the distance map
-//            std::vector<MapPoint *> vpMP;
-//            {
-//                unique_lock<mutex> lock(mMutexTranscript);
-//                vpMP = mTranscriptInterface.GetNewPoints(pKF);
-//            }
             std::set<MapPoint*> vpMP = pKF->GetMapPoints();
 
             // calculate distance from point to line, if small enough, assign it to the supporting point list of the line
@@ -237,6 +214,101 @@ namespace ORB_SLAM2 {
             mvLines = lines;
             imGray.copyTo(mImLines);
         }
+
+        return vPOnLine;
+    }
+
+    std::vector<cv::Point3f> Modeler::GetPointsOnLineSegmentsOffline(){
+
+        std::vector<cv::Point3f> vPOnLine;
+
+        std::vector<KeyFrame*> vpKF;
+
+        // take keyframes out of queue
+        while(1) {
+            unique_lock<mutex> lock(mMutexToLines);
+            if (mdToLinesQueue.size() > 0) {
+                KeyFrame *pKF = mdToLinesQueue.front();
+                // filter out bad keyframes
+                if (pKF->isBad())
+                    continue;
+                vpKF.push_back(pKF);
+                mdToLinesQueue.pop_front();
+            } else {
+                break;
+            }
+        }
+
+
+        // for each keyframe, detect lines in image and save them in the map
+        std::map<KeyFrame*,std::vector<LineSegment>> mvLSpKF;
+
+        for (size_t indexKF = 0; indexKF < vpKF.size(); indexKF++) {
+
+            KeyFrame* pKF = vpKF[indexKF];
+
+            cv::Mat imGray;
+            {
+                unique_lock<mutex> lock(mMutexFrame);
+                mmFrameQueue[pKF->mnFrameId].copyTo(imGray);
+            }
+
+            if (imGray.empty()) {
+                cout << "Empty image to draw line!" << endl;
+                vPOnLine.clear();
+                continue;
+            }
+
+            if (imGray.channels() > 1) // this should be always true
+                cv::cvtColor(imGray, imGray, CV_RGB2GRAY);
+
+            std::vector<LineSegment> lines = DetectLineSegments(imGray);
+
+            mvLSpKF[pKF] = lines;
+
+        }
+
+        // for each keyframe, get map points and match against every other keyframe
+        for (size_t indexKF = 0; indexKF < vpKF.size(); indexKF++){
+            KeyFrame* pKF = vpKF[indexKF];
+
+            std::set<MapPoint*> vpMP = pKF->GetMapPoints();
+
+            // get the keyframe to match
+            for (size_t indKFMatch = indexKF; indKFMatch < vpKF.size(); indKFMatch++){
+                KeyFrame* pKFMatch = vpKF[indKFMatch];
+                std::set<MapPoint*> vpMPMatch = pKFMatch->GetMapPoints();
+
+                // all matched points between these two keyframes
+                std::vector<MapPoint*> vpMPAll;
+
+                // find all matched points in two keyframes
+                for (std::set<MapPoint*>::iterator it = vpMP.begin(); it != vpMP.end(); it++){
+
+                    // filter out bad map points
+                    if ((*it)->isBad())
+                        continue;
+                    // only keep confident points
+                    if ((*it)->Observations() < 10)
+                        continue;
+
+                    std::set<MapPoint*>::iterator itMatch;
+                    itMatch = vpMPMatch.find(*it);
+
+                    if (itMatch == vpMPMatch.end())
+                        continue;
+
+                    // if a match found
+                    vpMPAll.push_back(*it);
+                }
+
+
+
+            }
+        }
+
+
+
 
         return vPOnLine;
     }

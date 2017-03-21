@@ -58,6 +58,7 @@ namespace ORB_SLAM2 {
         void DetectLineSegmentsLater(KeyFrame* pKF);
         std::vector<LineSegment> DetectLineSegments(cv::Mat& im);
         std::vector<cv::Point3f> GetPointsOnLineSegments(KeyFrame* pKF);
+        std::vector<cv::Point3f> GetPointsOnLineSegmentsOffline();
 
         void AddKeyFrameEntry(KeyFrame* pKF);
         void AddDeletePointEntry(MapPoint* pMP);
