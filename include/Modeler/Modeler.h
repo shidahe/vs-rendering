@@ -43,9 +43,13 @@ namespace ORB_SLAM2 {
     class LinePoint {
     public:
         LinePoint(cv::Point3f p, LineSegment* mpFLS, LineSegment* mpSLS){
-            mp = p;
+            mP = p;
             mpFirstLS = mpFLS;
             mpSecondLS = mpSLS;
+        }
+
+        std::string toObj(){
+            return "v " + std::to_string(mP.x) + " " + std::to_string(mP.y) + " " + std::to_string(mP.z);
         }
 
         LineSegment* mpFirstLS;
@@ -59,8 +63,8 @@ namespace ORB_SLAM2 {
         VirtualLineSegment(MapPoint* pMPs, MapPoint* pMPe){
             mpMPStart = pMPs;
             mpMPEnd = pMPe;
-            mStart = cv::Point3f(mpMPStart);
-            mEnd = cv::Point3f(mpMPEnd);
+            mStart = cv::Point3f(mpMPStart->GetWorldPos());
+            mEnd = cv::Point3f(mpMPEnd->GetWorldPos());
         }
 
         bool operator==(const VirtualLineSegment& rhs){
@@ -99,6 +103,7 @@ namespace ORB_SLAM2 {
         std::vector<LineSegment> DetectLineSegments(cv::Mat& im);
         std::vector<cv::Point3f> GetPointsOnLineSegments(KeyFrame* pKF);
         std::vector<LinePoint> GetPointsOnLineSegmentsOffline();
+        void saveLinePointToFile(std::vector<LinePoint>& vPOnLine, const std::string & strFileName);
 
         void AddKeyFrameEntry(KeyFrame* pKF);
         void AddDeletePointEntry(MapPoint* pMP);

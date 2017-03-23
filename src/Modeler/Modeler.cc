@@ -4,6 +4,8 @@
 
 #include "Modeler/Modeler.h"
 
+#include <ctime>
+
 #include <chrono>
 
 // main header file for Line3D++
@@ -56,10 +58,10 @@ namespace ORB_SLAM2 {
 
                 UpdateModelDrawer();
             }
-            else {
-
-                AddPointsOnLineSegments();
-            }
+//            else {
+//
+//                AddPointsOnLineSegments();
+//            }
 
             ResetIfRequested();
 
@@ -69,11 +71,28 @@ namespace ORB_SLAM2 {
             usleep(100);
         }
 
-        SetFinish();
+        std::cout << std::endl << "Getting line crossings ..." << std::endl;
+        std::clock_t start;
+        double duration;
+        start = std::clock();
+        std::vector<LinePoint> vPOnLine = GetPointsOnLineSegmentsOffline();
+        duration = (std::clock() - start) / (double)CLOCKS_PER_SEC;
+        std::cout << std::endl << "Computing line crossing took " << std::to_string(duration) << "s" << std::endl;
+
+        std::cout << std::endl << "Saving line crossings to OBJ file ..." << std::endl;
+        saveLinePointToFile(vPOnLine, "line_crossings.obj");
+        std::cout << std::endl << "line crossings saved!" << std::endl;
 
         //CARV
-        unique_lock<mutex> lock(mMutexTranscript);
-        mTranscriptInterface.writeToFile("sfmtranscript_orbslam.txt");
+        {
+            unique_lock<mutex> lock(mMutexTranscript);
+            std::cout << std::endl << "Saving transcript to file ..." << std::endl;
+            mTranscriptInterface.writeToFile("sfmtranscript_orbslam.txt");
+            std::cout << std::endl << "transcript saved!" << std::endl;
+        }
+
+        SetFinish();
+
     }
 
     void Modeler::AddPointsOnLineSegments(){
@@ -230,11 +249,13 @@ namespace ORB_SLAM2 {
             unique_lock<mutex> lock(mMutexToLines);
             if (mdToLinesQueue.size() > 0) {
                 KeyFrame *pKF = mdToLinesQueue.front();
+                mdToLinesQueue.pop_front();
+
                 // filter out bad keyframes
                 if (pKF->isBad())
                     continue;
                 vpKF.push_back(pKF);
-                mdToLinesQueue.pop_front();
+
             } else {
                 break;
             }
@@ -272,10 +293,13 @@ namespace ORB_SLAM2 {
 
             mvLSpKF[pKF] = lines;
 
+            std::cout << "Keyframe " << std::to_string(indexKF) << " #lines: "
+                      << std::to_string(lines.size()) << std::endl;
+
         }
 
         // all virtual line segments
-        std::set<VirtualLineSegment> sVLSAll;
+        std::vector<VirtualLineSegment> vVLSAll;
 
         // for each keyframe, get map points and match against every other keyframe
         for (size_t indexKF = 0; indexKF < vpKF.size(); indexKF++){
@@ -283,9 +307,17 @@ namespace ORB_SLAM2 {
 
             std::set<MapPoint*> vpMP = pKF->GetMapPoints();
 
+            // only match against keyframes with best covisibility
+            std::vector<KeyFrame*> vKFBestCov = pKF->GetBestCovisibilityKeyFrames(1);
+
             // get the keyframe to match
             for (size_t indKFMatch = indexKF; indKFMatch < vpKF.size(); indKFMatch++){
                 KeyFrame* pKFMatch = vpKF[indKFMatch];
+
+                // if it is not a best covisible keyframe
+                if (std::find(vKFBestCov.begin(), vKFBestCov.end(), pKFMatch) == vKFBestCov.end())
+                    continue;
+
                 std::set<MapPoint*> vpMPMatch = pKFMatch->GetMapPoints();
 
                 // all matched points between these two keyframes
@@ -293,6 +325,10 @@ namespace ORB_SLAM2 {
 
                 // find all matched points in two keyframes
                 for (std::set<MapPoint*>::iterator it = vpMP.begin(); it != vpMP.end(); it++){
+
+                    // only keep a fixed number of matched points
+                    if (vpMPMatched.size() > 50)
+                        break;
 
                     // filter out bad map points
                     if ((*it)->isBad())
@@ -322,6 +358,10 @@ namespace ORB_SLAM2 {
                     }
                 }
 
+                std::cout << "Keyframe " << std::to_string(indexKF) << "<->" << std::to_string(indKFMatch)
+                          << " #VLS:" << std::to_string(vVLS.size()) << " #Matched points: "
+                          << std::to_string(vpMPMatched.size())<< std::endl;
+
                 // for each virtual line segment, compute the intersection of its projection and the line segments
                 for (size_t indexVLS = 0; indexVLS < vVLS.size(); indexVLS++){
 
@@ -332,6 +372,10 @@ namespace ORB_SLAM2 {
 
                     // test if the virtual line segment is in image, this should be always be false
                     if (startVLS2f.x < 0 || startVLS2f.y < 0 || endVLS2f.x < 0 || endVLS2f.y < 0)
+                        continue;
+
+                    // filter out virtual line segments that the pair of points are too far away
+                    if (cv::norm(startVLS2f - endVLS2f) > 50)
                         continue;
 
                     cv::Point3f startVLS3f(startVLS2f.x, startVLS2f.y, 1.0);
@@ -358,15 +402,26 @@ namespace ORB_SLAM2 {
                         cv::Point3f intersect3f = crossVLS.cross(crossLS);
                         cv::Point2f intersect2f(intersect3f.x/intersect3f.z, intersect3f.y/intersect3f.z);
 
-                        bool betweenVLSx = (intersect2f.x - startVLS2f.x) * (intersect2f.x - endVLS2f.x) <= 0;
-                        bool betweenVLSy = (intersect2f.y - startVLS2f.y) * (intersect2f.y - endVLS2f.y) <= 0;
+//                        bool betweenVLSx = (intersect2f.x - startVLS2f.x) * (intersect2f.x - endVLS2f.x) <= 0;
+//                        bool betweenVLSy = (intersect2f.y - startVLS2f.y) * (intersect2f.y - endVLS2f.y) <= 0;
+
+
+//                        double distInterS = cv::norm(intersect2f-startLS2f);
+//                        double distInterE = cv::norm(intersect2f-endLS2f);
+//                        double distLSSE = cv::norm(startLS2f-endLS2f);
+
 
                         bool betweenLSx = (intersect2f.x - startLS2f.x) * (intersect2f.x - endLS2f.x) <= 0;
                         bool betweenLSy = (intersect2f.y - startLS2f.y) * (intersect2f.y - endLS2f.y) <= 0;
 
                         // if not intersected
-                        if ( !(betweenVLSx && betweenVLSy && betweenLSx && betweenLSy) )
+//                        if ( !(betweenVLSx && betweenVLSy && betweenLSx && betweenLSy) )
+                        if ( !betweenLSx || !betweenLSy )
                             continue;
+//                        if (distInterS + distInterE - distLSSE > std::numeric_limits<double>::epsilon()) {
+//                            continue;
+//                        }
+
 
                         // intersection found, project it to 3d and to second keyframe
                         cv::Mat TwcKF = pKF->GetPoseInverse();
@@ -438,6 +493,7 @@ namespace ORB_SLAM2 {
                                 // there is a match, save it in the virtual line segment
                                 LinePoint lp(cv::Point3f(intersect3D),&line,&lineMatch);
                                 vls.mvLPs.push_back(lp);
+                                std::cout << "A line point created" << std::endl;
                             }
                         }
 
@@ -446,21 +502,39 @@ namespace ORB_SLAM2 {
                 }
 
                 // save all virtual line segments matched in the two keyframes into the set
-                sVLSAll.insert(vVLS.begin(),vVLS.end());
+                vVLSAll.insert(vVLSAll.end(),vVLS.begin(),vVLS.end());
 
             }
 
         }
 
         // get line points out of virtual line segments
-        for (std::set<VirtualLineSegment>::iterator it = sVLSAll.begin(); it != sVLSAll.end(); it++){
+        for (std::vector<VirtualLineSegment>::iterator it = vVLSAll.begin(); it != vVLSAll.end(); it++){
             for (size_t indexLP = 0; indexLP < (*it).mvLPs.size(); indexLP++){
                 vLPOnLine.push_back((*it).mvLPs[indexLP]);
             }
         }
 
+        std::cout << "#Total line points:" << std::to_string(vLPOnLine.size());
 
         return vLPOnLine;
+    }
+
+    void Modeler::saveLinePointToFile(std::vector<LinePoint>& vPOnLine, const std::string & strFileName){
+
+        std::ofstream fileOut(strFileName.c_str(), std::ios::out);
+        if(!fileOut){
+            std::cerr << "Failed to save points on line" << std::endl;
+            return;
+        }
+
+        for (size_t indexLP = 0; indexLP < vPOnLine.size(); indexLP++){
+            fileOut << vPOnLine[indexLP].toObj() << "\n";
+        }
+
+        fileOut.flush();
+        fileOut.close();
+
     }
 
     std::vector<LineSegment> Modeler::DetectLineSegments(cv::Mat& im) {
@@ -753,7 +827,7 @@ namespace ORB_SLAM2 {
             std::map<MapPoint*,float> mpMP = line.mmpMPProj;
             for (std::map<MapPoint*, float>::iterator it = mpMP.begin(); it != mpMP.end(); it++){
                 MapPoint * pMP = it->first;
-                cv::Point2f pt = line.mpRefKF->ProjectPointOnCamera(pMP);
+                cv::Point2f pt = line.mpRefKF->ProjectPointOnCamera(pMP->GetWorldPos());
                 const float r = 5;
                 cv::Point2f pt1,pt2;
                 pt1.x=pt.x-r;
