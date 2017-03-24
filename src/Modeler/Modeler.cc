@@ -291,10 +291,11 @@ namespace ORB_SLAM2 {
                 line.mpRefKF = pKF;
             }
 
-            mvLSpKF[pKF] = lines;
+            mvLSpKF.insert(std::map<KeyFrame*,std::vector<LineSegment>>::value_type(pKF, lines));
+//            mvLSpKF[pKF] = lines;
 
-            std::cout << "Keyframe " << std::to_string(indexKF) << " #lines: "
-                      << std::to_string(lines.size()) << std::endl;
+//            std::cout << "Keyframe " << std::to_string(indexKF) << " #lines: "
+//                      << std::to_string(lines.size()) << std::endl;
 
         }
 
@@ -308,7 +309,7 @@ namespace ORB_SLAM2 {
             std::set<MapPoint*> vpMP = pKF->GetMapPoints();
 
             // only match against keyframes with best covisibility
-            std::vector<KeyFrame*> vKFBestCov = pKF->GetBestCovisibilityKeyFrames(1);
+            std::vector<KeyFrame*> vKFBestCov = pKF->GetBestCovisibilityKeyFrames(5);
 
             // get the keyframe to match
             for (size_t indKFMatch = indexKF; indKFMatch < vpKF.size(); indKFMatch++){
@@ -327,14 +328,14 @@ namespace ORB_SLAM2 {
                 for (std::set<MapPoint*>::iterator it = vpMP.begin(); it != vpMP.end(); it++){
 
                     // only keep a fixed number of matched points
-                    if (vpMPMatched.size() > 50)
+                    if (vpMPMatched.size() >= 100)
                         break;
 
                     // filter out bad map points
                     if ((*it)->isBad())
                         continue;
                     // only keep confident points
-                    if ((*it)->Observations() < 10)
+                    if ((*it)->Observations() < 5)
                         continue;
 
                     std::set<MapPoint*>::iterator itMatch;
@@ -374,54 +375,45 @@ namespace ORB_SLAM2 {
                     if (startVLS2f.x < 0 || startVLS2f.y < 0 || endVLS2f.x < 0 || endVLS2f.y < 0)
                         continue;
 
+                    cv::Point2f seVLS2f = endVLS2f - startVLS2f;
+
+//                    std::cout << "norm seVLS2f " << std::to_string(norm(seVLS2f)) << std::endl;
+
                     // filter out virtual line segments that the pair of points are too far away
-                    if (cv::norm(startVLS2f - endVLS2f) > 50)
+                    if (cv::norm(seVLS2f) > 100)
                         continue;
 
-                    cv::Point3f startVLS3f(startVLS2f.x, startVLS2f.y, 1.0);
-                    cv::Point3f endVLS3f(endVLS2f.x, startVLS2f.y, 1.0);
-
-                    cv::Point3f crossVLS = startVLS3f.cross(endVLS3f);
-
                     //TODO: avoid compute intersections in the same keyframe
-                    std::vector<LineSegment> vLS = mvLSpKF[pKF];
+                    std::vector<LineSegment>& vLS = mvLSpKF[pKF];
+
+//                    std::cout << "vLS size " << std::to_string(vLS.size()) << std::endl;
 
 
                     for (size_t indexLS = 0; indexLS < vLS.size(); indexLS++){
 
                         LineSegment& line = vLS[indexLS];
 
+                        // find intersection on image
+                        // http://stackoverflow.com/questions/563198/how-do-you-detect-where-two-line-segments-intersect
                         cv::Point2f startLS2f = line.mStart;
                         cv::Point2f endLS2f = line.mEnd;
 
-                        cv::Point3f startLS3f(startLS2f.x, startLS2f.y, 1.0);
-                        cv::Point3f endLS3f(endLS2f.x, startLS2f.y, 1.0);
+                        cv::Point2f seLS2f = endLS2f - startLS2f;
 
-                        cv::Point3f crossLS = startLS3f.cross(endLS3f);
+                        double rxs = seVLS2f.cross(seLS2f);
 
-                        cv::Point3f intersect3f = crossVLS.cross(crossLS);
-                        cv::Point2f intersect2f(intersect3f.x/intersect3f.z, intersect3f.y/intersect3f.z);
-
-//                        bool betweenVLSx = (intersect2f.x - startVLS2f.x) * (intersect2f.x - endVLS2f.x) <= 0;
-//                        bool betweenVLSy = (intersect2f.y - startVLS2f.y) * (intersect2f.y - endVLS2f.y) <= 0;
-
-
-//                        double distInterS = cv::norm(intersect2f-startLS2f);
-//                        double distInterE = cv::norm(intersect2f-endLS2f);
-//                        double distLSSE = cv::norm(startLS2f-endLS2f);
-
-
-                        bool betweenLSx = (intersect2f.x - startLS2f.x) * (intersect2f.x - endLS2f.x) <= 0;
-                        bool betweenLSy = (intersect2f.y - startLS2f.y) * (intersect2f.y - endLS2f.y) <= 0;
-
-                        // if not intersected
-//                        if ( !(betweenVLSx && betweenVLSy && betweenLSx && betweenLSy) )
-                        if ( !betweenLSx || !betweenLSy )
+                        // if rxs is zero
+                        if (abs(rxs) <= std::numeric_limits<double>::epsilon() )
                             continue;
-//                        if (distInterS + distInterE - distLSSE > std::numeric_limits<double>::epsilon()) {
-//                            continue;
-//                        }
 
+                        double tVLS = (startLS2f - startVLS2f).cross(seLS2f) / rxs;
+                        double uLS = (startLS2f - startVLS2f).cross(seVLS2f) / rxs;
+
+                        // if not intersected with detected line segment
+                        if (uLS < 0.0 || uLS > 1.0)
+                            continue;
+
+                        cv::Point2f intersect2f = startLS2f + uLS * seLS2f;
 
                         // intersection found, project it to 3d and to second keyframe
                         cv::Mat TwcKF = pKF->GetPoseInverse();
@@ -433,53 +425,46 @@ namespace ORB_SLAM2 {
                         cv::Mat Pc = cv::Mat(3, 1, CV_32F);
                         Pc.at<float>(0) = PcX;
                         Pc.at<float>(1) = PcY;
-                        Pc.at<float>(2) = 1.0;
+                        Pc.at<float>(2) = 10.0;
 
                         // position of the line-crossing in world coordinate
                         cv::Mat Pw = RwcKF * Pc + twcKF;
 
                         // compute intersection between the ray from camera center towards line-crossing and the 3D VLS
-                        cv::Mat hPw = cv::Mat(4, 1, CV_32F);
-                        hPw.at<float>(0) = Pw.at<float>(0);
-                        hPw.at<float>(1) = Pw.at<float>(1);
-                        hPw.at<float>(2) = Pw.at<float>(2);
-                        hPw.at<float>(3) = 1.0;
+                        // http://mathworld.wolfram.com/Line-LineIntersection.html
+                        cv::Point3f Pw3f(Pw);
+                        cv::Point3f Ow3f(twcKF);
+                        cv::Point3f seOP3f = Pw3f - Ow3f;
 
-                        cv::Mat hOw = cv::Mat(4, 1, CV_32F);
-                        hOw.at<float>(0) = twcKF.at<float>(0);
-                        hOw.at<float>(1) = twcKF.at<float>(1);
-                        hOw.at<float>(2) = twcKF.at<float>(2);
-                        hOw.at<float>(3) = 1.0;
+                        cv::Point3f startVLS3f = vls.mStart;
+                        cv::Point3f endVLS3f = vls.mEnd;
+                        cv::Point3f seVLS3f = endVLS3f - startVLS3f;
 
-                        cv::Mat crossPO = hPw.cross(hOw);
+                        cv::Point3f axbOP = seVLS3f.cross(seOP3f);
+                        double normaxb = norm(axbOP);
 
-                        cv::Mat hStart = cv::Mat(4, 1, CV_32F);
-                        hStart.at<float>(0) = vls.mStart.x;
-                        hStart.at<float>(1) = vls.mStart.y;
-                        hStart.at<float>(2) = vls.mStart.z;
-                        hStart.at<float>(3) = 1.0;
+                        // if norm of axb is zero
+                        if (abs(normaxb) <= std::numeric_limits<double>::epsilon() )
+                            continue;
 
-                        cv::Mat hEnd = cv::Mat(4, 1, CV_32F);
-                        hEnd.at<float>(0) = vls.mEnd.x;
-                        hEnd.at<float>(1) = vls.mEnd.y;
-                        hEnd.at<float>(2) = vls.mEnd.z;
-                        hEnd.at<float>(3) = 1.0;
+                        double sVLS = (Ow3f - startVLS3f).cross(seOP3f).dot(axbOP) / std::pow(normaxb,2.0);
 
-                        cv::Mat crossSE = hStart.cross(hEnd);
-
-                        // intersection of ray and VLS, should always be on the VLS
-                        cv::Mat hIntersect = crossSE.cross(crossPO);
+                        // intersection of ray and VLS, should always be on the line of VLS
+                        cv::Point3f intersect3f = startVLS3f + sVLS * seVLS3f;
 
                         cv::Mat intersect3D = cv::Mat(3, 1, CV_32F);
-                        intersect3D.at<float>(0) = hIntersect.at<float>(0) / hIntersect.at<float>(3);
-                        intersect3D.at<float>(1) = hIntersect.at<float>(1) / hIntersect.at<float>(3);
-                        intersect3D.at<float>(2) = hIntersect.at<float>(2) / hIntersect.at<float>(3);
+                        intersect3D.at<float>(0) = intersect3f.x;
+                        intersect3D.at<float>(1) = intersect3f.y;
+                        intersect3D.at<float>(2) = intersect3f.z;
 
                         // project 3D intersection onto the second keyframe
                         cv::Point2f lineCrossMatch = pKFMatch->ProjectPointOnCamera(intersect3D);
 
                         // loop through line segments in the second keyframe, find if the point is on a line segment
-                        std::vector<LineSegment> vLSMatch = mvLSpKF[pKFMatch];
+                        std::vector<LineSegment>& vLSMatch = mvLSpKF[pKFMatch];
+
+//                        std::cout << "vLSMatch size " << std::to_string(vLSMatch.size()) << std::endl;
+
                         for (size_t indexLSMatch = 0; indexLSMatch < vLSMatch.size(); indexLSMatch++){
                             LineSegment& lineMatch = vLSMatch[indexLSMatch];
                             cv::Point2f startLSMatch2f = lineMatch.mStart;
@@ -489,11 +474,11 @@ namespace ORB_SLAM2 {
                             double distLCE = cv::norm(lineCrossMatch-endLSMatch2f);
                             double distSE = cv::norm(startLSMatch2f-endLSMatch2f);
                             // the distance is almost the same
-                            if (std::abs(distLCS + distLCE - distSE) < std::numeric_limits<double>::epsilon()){
+                            if (std::abs(distLCS + distLCE - distSE) <= 0.000001){
                                 // there is a match, save it in the virtual line segment
                                 LinePoint lp(cv::Point3f(intersect3D),&line,&lineMatch);
                                 vls.mvLPs.push_back(lp);
-                                std::cout << "A line point created" << std::endl;
+//                                std::cout << "A line point created" << std::endl;
                             }
                         }
 
