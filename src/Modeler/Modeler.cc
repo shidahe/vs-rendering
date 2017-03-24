@@ -292,10 +292,6 @@ namespace ORB_SLAM2 {
             }
 
             mvLSpKF.insert(std::map<KeyFrame*,std::vector<LineSegment>>::value_type(pKF, lines));
-//            mvLSpKF[pKF] = lines;
-
-//            std::cout << "Keyframe " << std::to_string(indexKF) << " #lines: "
-//                      << std::to_string(lines.size()) << std::endl;
 
         }
 
@@ -354,8 +350,20 @@ namespace ORB_SLAM2 {
                 for (size_t indexMPStart = 0; indexMPStart < vpMPMatched.size(); indexMPStart++){
                     for (size_t indexMPEnd = indexMPStart+1; indexMPEnd < vpMPMatched.size(); indexMPEnd++) {
                         VirtualLineSegment vls(vpMPMatched[indexMPStart], vpMPMatched[indexMPEnd]);
-                        //TODO:: MAYBE avoid adding duplicate virtual line segment
-                        vVLS.push_back(vls);
+                        // avoid adding duplicate virtual line segment
+                        size_t indexVLSAll;
+                        // find duplicate VLS index
+                        for (indexVLSAll = 0; indexVLSAll < vVLSAll.size(); indexVLSAll++){
+                            if (vls == vVLSAll[indexVLSAll])
+                                break;
+                        }
+                        if (indexVLSAll < vVLSAll.size()) {
+                            VirtualLineSegment& vlsRef = vVLSAll[indexVLSAll];
+                            vVLS.push_back(vlsRef);
+//                            std::cout << "Found a duplicate VLS: " << std::to_string(indexVLSAll) << std::endl;
+                        } else {
+                            vVLS.push_back(vls);
+                        }
                     }
                 }
 
@@ -470,16 +478,44 @@ namespace ORB_SLAM2 {
                             cv::Point2f startLSMatch2f = lineMatch.mStart;
                             cv::Point2f endLSMatch2f = lineMatch.mEnd;
                             // if the point is on a line segment
-                            double distLCS = cv::norm(lineCrossMatch-startLSMatch2f);
-                            double distLCE = cv::norm(lineCrossMatch-endLSMatch2f);
-                            double distSE = cv::norm(startLSMatch2f-endLSMatch2f);
-                            // the distance is almost the same
-                            if (std::abs(distLCS + distLCE - distSE) <= 0.000001){
+                            cv::Point2f LCS = lineCrossMatch-startLSMatch2f;
+                            cv::Point2f SE = endLSMatch2f-startLSMatch2f;
+                            double distSE = cv::norm(SE);
+
+                            double distLCLS;
+                            if (distSE == 0.0) {
+                                distLCLS = cv::norm(LCS);
+                            } else {
+                                double t = std::max(0.0, std::min(1.0, (lineCrossMatch - startLSMatch2f).dot(SE) /
+                                                                       std::pow(distSE, 2.0)));
+                                cv::Point2f projLCLS = startLSMatch2f + t * SE;
+
+                                distLCLS = cv::norm(lineCrossMatch - projLCLS);
+                            }
+                            // the distance is small enough (in pixel)
+                            if (distLCLS <= 0.5){
                                 // there is a match, save it in the virtual line segment
-                                LinePoint lp(cv::Point3f(intersect3D),&line,&lineMatch);
-                                vls.mvLPs.push_back(lp);
+                                LinePoint lp(intersect3f);
+
+                                // find existing line point in the VLS's list
+                                size_t indexVLSLP;
+                                for (indexVLSLP = 0; indexVLSLP < vls.mvLPs.size(); indexVLSLP++){
+                                    if (lp == vls.mvLPs[indexVLSLP])
+                                        break;
+                                }
+
+                                if (indexVLSLP < vls.mvLPs.size()){
+                                    LinePoint& lpRef = vls.mvLPs[indexVLSLP];
+                                    lpRef.addRefLineSegment(&line);
+                                    lpRef.addRefLineSegment(&lineMatch);
+                                } else {
+                                    lp.addRefLineSegment(&line);
+                                    lp.addRefLineSegment(&lineMatch);
+                                    vls.mvLPs.push_back(lp);
+                                }
 //                                std::cout << "A line point created" << std::endl;
                             }
+
                         }
 
                     }

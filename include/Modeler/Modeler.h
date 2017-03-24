@@ -42,19 +42,26 @@ namespace ORB_SLAM2 {
 
     class LinePoint {
     public:
-        LinePoint(cv::Point3f p, LineSegment* mpFLS, LineSegment* mpSLS){
+        LinePoint(cv::Point3f p){
             mP = p;
-            mpFirstLS = mpFLS;
-            mpSecondLS = mpSLS;
         }
 
         std::string toObj(){
             return "v " + std::to_string(mP.x) + " " + std::to_string(mP.y) + " " + std::to_string(mP.z);
         }
 
-        LineSegment* mpFirstLS;
-        LineSegment* mpSecondLS;
+        void addRefLineSegment(LineSegment* pLS){
+            mspLSs.insert(pLS);
+        }
+
+        bool operator==(const LinePoint& rhs){
+            return cv::norm(rhs.mP - mP) <= EPSILON;
+        }
+
+        // a list of reference line segment
+        std::set<LineSegment*> mspLSs;
         cv::Point3f mP;
+        static constexpr double EPSILON = 10e-6;
     };
 
 
