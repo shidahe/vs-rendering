@@ -24,7 +24,7 @@ namespace ORB_SLAM2 {
     Modeler::Modeler(ModelDrawer* pModelDrawer):
             mbResetRequested(false), mbFinishRequested(false), mbFinished(true), mpModelDrawer(pModelDrawer),
             mnLastNumLines(2), mbFirstKeyFrame(true), mnMaxTextureQueueSize(10), mnMaxFrameQueueSize(10000),
-            mnMaxToLinesQueueSize(100)
+            mnMaxToLinesQueueSize(1000)
     {
         mAlgInterface.setAlgorithmRef(&mObjAlgorithm);
         mAlgInterface.setTranscriptRef(mTranscriptInterface.getTranscriptToProcessRef());
@@ -350,20 +350,7 @@ namespace ORB_SLAM2 {
                 for (size_t indexMPStart = 0; indexMPStart < vpMPMatched.size(); indexMPStart++){
                     for (size_t indexMPEnd = indexMPStart+1; indexMPEnd < vpMPMatched.size(); indexMPEnd++) {
                         VirtualLineSegment vls(vpMPMatched[indexMPStart], vpMPMatched[indexMPEnd]);
-                        // avoid adding duplicate virtual line segment
-                        size_t indexVLSAll;
-                        // find duplicate VLS index
-                        for (indexVLSAll = 0; indexVLSAll < vVLSAll.size(); indexVLSAll++){
-                            if (vls == vVLSAll[indexVLSAll])
-                                break;
-                        }
-                        if (indexVLSAll < vVLSAll.size()) {
-                            VirtualLineSegment& vlsRef = vVLSAll[indexVLSAll];
-                            vVLS.push_back(vlsRef);
-//                            std::cout << "Found a duplicate VLS: " << std::to_string(indexVLSAll) << std::endl;
-                        } else {
-                            vVLS.push_back(vls);
-                        }
+                        vVLS.push_back(vls);
                     }
                 }
 
@@ -493,26 +480,12 @@ namespace ORB_SLAM2 {
                                 distLCLS = cv::norm(lineCrossMatch - projLCLS);
                             }
                             // the distance is small enough (in pixel)
-                            if (distLCLS <= 0.5){
+                            if (distLCLS <= 0.1){
                                 // there is a match, save it in the virtual line segment
                                 LinePoint lp(intersect3f);
-
-                                // find existing line point in the VLS's list
-                                size_t indexVLSLP;
-                                for (indexVLSLP = 0; indexVLSLP < vls.mvLPs.size(); indexVLSLP++){
-                                    if (lp == vls.mvLPs[indexVLSLP])
-                                        break;
-                                }
-
-                                if (indexVLSLP < vls.mvLPs.size()){
-                                    LinePoint& lpRef = vls.mvLPs[indexVLSLP];
-                                    lpRef.addRefLineSegment(&line);
-                                    lpRef.addRefLineSegment(&lineMatch);
-                                } else {
-                                    lp.addRefLineSegment(&line);
-                                    lp.addRefLineSegment(&lineMatch);
-                                    vls.mvLPs.push_back(lp);
-                                }
+                                lp.addRefLineSegment(&line);
+                                lp.addRefLineSegment(&lineMatch);
+                                vls.mvLPs.push_back(lp);
 //                                std::cout << "A line point created" << std::endl;
                             }
 
@@ -522,8 +495,45 @@ namespace ORB_SLAM2 {
 
                 }
 
+
                 // save all virtual line segments matched in the two keyframes into the set
-                vVLSAll.insert(vVLSAll.end(),vVLS.begin(),vVLS.end());
+//                vVLSAll.insert(vVLSAll.end(),vVLS.begin(),vVLS.end());
+
+                for (size_t indexVLS = 0; indexVLS < vVLS.size(); indexVLS++) {
+                    VirtualLineSegment& vls = vVLS[indexVLS];
+                    // avoid adding duplicate virtual line segment
+                    size_t indexVLSAll;
+                    // find duplicate VLS index
+                    for (indexVLSAll = 0; indexVLSAll < vVLSAll.size(); indexVLSAll++) {
+                        if (vls == vVLSAll[indexVLSAll])
+                            break;
+                    }
+                    if (indexVLSAll < vVLSAll.size()) {
+                        VirtualLineSegment &vlsRef = vVLSAll[indexVLSAll];
+                        for (size_t indexVLSLP = 0; indexVLSLP < vls.mvLPs.size(); indexVLSLP++){
+                            LinePoint& lp = vls.mvLPs[indexVLSLP];
+                            // find existing line point in the VLS's list
+                            size_t indexVLSRefLP;
+                            for (indexVLSRefLP = 0; indexVLSRefLP < vlsRef.mvLPs.size(); indexVLSRefLP++) {
+                                if (lp == vlsRef.mvLPs[indexVLSLP])
+                                    break;
+                            }
+                            if (indexVLSRefLP < vlsRef.mvLPs.size()) {
+                                LinePoint &lpRef = vlsRef.mvLPs[indexVLSRefLP];
+                                std::set<LineSegment*>::iterator itLS;
+                                for (itLS = lp.mspLSs.begin(); itLS != lp.mspLSs.end(); itLS++){
+                                    lpRef.addRefLineSegment(*itLS);
+                                }
+                            } else {
+                                vlsRef.mvLPs.push_back(lp);
+                            }
+                        }
+//                            std::cout << "Found a duplicate VLS: " << std::to_string(indexVLSAll) << std::endl;
+                    } else {
+                        vVLSAll.push_back(vls);
+                    }
+
+                }
 
             }
 
