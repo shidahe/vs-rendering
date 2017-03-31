@@ -305,7 +305,7 @@ namespace ORB_SLAM2 {
             std::set<MapPoint*> vpMP = pKF->GetMapPoints();
 
             // only match against keyframes with best covisibility
-            std::vector<KeyFrame*> vKFBestCov = pKF->GetBestCovisibilityKeyFrames(5);
+            std::vector<KeyFrame*> vKFBestCov = pKF->GetBestCovisibilityKeyFrames(1);
 
             // get the keyframe to match
             for (size_t indKFMatch = indexKF; indKFMatch < vpKF.size(); indKFMatch++){
@@ -497,10 +497,13 @@ namespace ORB_SLAM2 {
 
 
                 // save all virtual line segments matched in the two keyframes into the set
-//                vVLSAll.insert(vVLSAll.end(),vVLS.begin(),vVLS.end());
 
                 for (size_t indexVLS = 0; indexVLS < vVLS.size(); indexVLS++) {
                     VirtualLineSegment& vls = vVLS[indexVLS];
+                    // avoid adding VLS that have less than threshold line point matches
+                    if (vls.mvLPs.size() < 5)
+                        continue;
+
                     // avoid adding duplicate virtual line segment
                     size_t indexVLSAll;
                     // find duplicate VLS index
@@ -540,13 +543,20 @@ namespace ORB_SLAM2 {
         }
 
         // get line points out of virtual line segments
+        int numTotalLP = 0;
         for (std::vector<VirtualLineSegment>::iterator it = vVLSAll.begin(); it != vVLSAll.end(); it++){
             for (size_t indexLP = 0; indexLP < (*it).mvLPs.size(); indexLP++){
-                vLPOnLine.push_back((*it).mvLPs[indexLP]);
+                numTotalLP++;
+                LinePoint& currLP = (*it).mvLPs[indexLP];
+                if (currLP.mspLSs.size() >= 3) {
+                    vLPOnLine.push_back(currLP);
+                }
             }
         }
 
-        std::cout << "#Total line points:" << std::to_string(vLPOnLine.size());
+        std::cout << "#Total line points:" << std::to_string(numTotalLP) << std::endl;
+
+        std::cout << "#Filtered line points:" << std::to_string(vLPOnLine.size()) << std::endl;
 
         return vLPOnLine;
     }
