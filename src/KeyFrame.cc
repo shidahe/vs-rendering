@@ -674,7 +674,7 @@ namespace ORB_SLAM2
         float invz = 1.0f / PcZ;
         float x = fx * PcX * invz + cx;
         float y = fy * PcY * invz + cy;
-        if (PcZ > 0 || IsInImage(x,y)){
+        if (PcZ > 0 && IsInImage(x,y)){
             xy.x = x;
             xy.y = y;
         } else {
