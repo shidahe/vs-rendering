@@ -238,6 +238,28 @@ namespace ORB_SLAM2 {
         return vPOnLine;
     }
 
+
+
+    double Modeler::computeNG(double N, double Khat){
+        if (Khat > 0.5)
+            return 0;
+        // compute solution for the quadratic equation
+        double a = 1.0 / 6.0;
+        double b = - (0.5 - N/3.0);
+        double c = - N * (N-1) * (0.5-Khat);
+        double underSqrt = b*b - 4*a*c;
+        double root = std::sqrt(underSqrt) / (2*a);
+        double NG = - b / (2*a);
+        // only return solution between 0 and N
+        if (NG+root >= 0 && NG+root <= N){
+            return NG+root;
+        } else if (NG-root >= 0 && NG-root <= N){
+            return NG-root;
+        } else {
+            return 0;
+        }
+    }
+
     std::vector<LinePoint> Modeler::GetPointsOnLineSegmentsOffline(){
 
         std::vector<LinePoint> vLPOnLine;
@@ -301,11 +323,13 @@ namespace ORB_SLAM2 {
         // all virtual line segments
         std::vector<VirtualLineSegment> vVLSAll;
 
-        // for each keyframe, get map points and match against every other keyframe
-        for (size_t indexKF = 0; indexKF < vpKF.size(); indexKF++){
-            KeyFrame* pKF = vpKF[indexKF];
+        // every pair of keyframes
+        std::vector<std::pair<KeyFrame*,KeyFrame*>> vpairPKF;
 
-            std::set<MapPoint*> vpMP = pKF->GetMapPoints();
+        // get all best pairs
+        for (size_t indexKF = 0; indexKF < vpKF.size(); indexKF++){
+            // search from end to begin
+            KeyFrame* pKF = vpKF[vpKF.size()-1-indexKF];
 
             // only match against keyframes with best covisibility
             std::vector<KeyFrame*> vKFBestCov5 = pKF->GetBestCovisibilityKeyFrames(5);
@@ -316,411 +340,459 @@ namespace ORB_SLAM2 {
 
             // get the keyframe to match
             for (size_t indKFMatch = indexKF; indKFMatch < vpKF.size(); indKFMatch++){
-                KeyFrame* pKFMatch = vpKF[indKFMatch];
-
+                KeyFrame* pKFMatch = vpKF[vpKF.size()-1-indKFMatch];
                 // if it is not a best covisible keyframe
                 if (std::find(vKFBestCov.begin(), vKFBestCov.end(), pKFMatch) == vKFBestCov.end())
                     continue;
+                vpairPKF.push_back(std::make_pair(pKF,pKFMatch));
+            }
+        }
 
-                std::set<MapPoint*> vpMPMatch = pKFMatch->GetMapPoints();
 
-                // all matched points between these two keyframes
-                std::vector<MapPoint*> vpMPMatched;
+        // for each keyframe, get map points and match against every other keyframe
+        for (size_t indexKFPair = 0; indexKFPair < vpairPKF.size(); indexKFPair++){
+            KeyFrame* pKF = vpairPKF[indexKFPair].first;
+            std::set<MapPoint*> vpMP = pKF->GetMapPoints();
 
-                // find all matched points in two keyframes
-                for (std::set<MapPoint*>::iterator it = vpMP.begin(); it != vpMP.end(); it++){
+            // get the keyframe to match
+            KeyFrame* pKFMatch = vpairPKF[indexKFPair].second;
+            std::set<MapPoint*> vpMPMatch = pKFMatch->GetMapPoints();
 
-                    // only keep a fixed number of matched points
-                    if (vpMPMatched.size() >= 100)
-                        break;
+            // all matched points between these two keyframes
+            std::vector<MapPoint*> vpMPMatched;
 
-                    // filter out bad map points
-                    if ((*it)->isBad())
-                        continue;
-                    // only keep confident points
-                    if ((*it)->Observations() < 10)
-                        continue;
+            // find all matched points in two keyframes
+            for (std::set<MapPoint*>::iterator it = vpMP.begin(); it != vpMP.end(); it++){
 
-                    std::set<MapPoint*>::iterator itMatch;
-                    itMatch = vpMPMatch.find(*it);
+                // only keep a fixed number of matched points
+                if (vpMPMatched.size() >= 100)
+                    break;
 
-                    if (itMatch == vpMPMatch.end())
-                        continue;
+                // filter out bad map points
+                if ((*it)->isBad())
+                    continue;
+                // only keep confident points
+                if ((*it)->Observations() < 10)
+                    continue;
 
-                    // if a match found
-                    vpMPMatched.push_back(*it);
-                }
+                std::set<MapPoint*>::iterator itMatch;
+                itMatch = vpMPMatch.find(*it);
 
-                // all combinations of pairs of matched points between two keyframes
-                std::vector<VirtualLineSegment> vVLS;
+                if (itMatch == vpMPMatch.end())
+                    continue;
 
-                for (size_t indexMPStart = 0; indexMPStart < vpMPMatched.size(); indexMPStart++){
-                    for (size_t indexMPEnd = indexMPStart+1; indexMPEnd < vpMPMatched.size(); indexMPEnd++) {
-                        VirtualLineSegment vls(vpMPMatched[indexMPStart], vpMPMatched[indexMPEnd]);
-                        vVLS.push_back(vls);
-                    }
-                }
-
-                std::cout << "Keyframe " << std::to_string(indexKF) << "<->" << std::to_string(indKFMatch)
-                          << " #VLS:" << std::to_string(vVLS.size()) << " #Matched points: "
-                          << std::to_string(vpMPMatched.size())<< std::endl;
-
-                // map for finding line segment matches
-                std::map<LineSegment*,std::vector<LinePoint>> mpLSvLP;
-
-                // initialize the map
-                for (size_t indexLS = 0; indexLS < mvLSpKF[pKF].size(); indexLS++) {
-                    LineSegment* pLS = &mvLSpKF[pKF][indexLS];
-                    std::vector<LinePoint> vLP;
-                    mpLSvLP.insert(std::map<LineSegment*,std::vector<LinePoint>>::value_type(pLS, vLP));
-                }
-                for (size_t indexLS = 0; indexLS < mvLSpKF[pKFMatch].size(); indexLS++) {
-                    LineSegment* pLS = &mvLSpKF[pKFMatch][indexLS];
-                    std::vector<LinePoint> vLP;
-                    mpLSvLP.insert(std::map<LineSegment*,std::vector<LinePoint>>::value_type(pLS, vLP));
-                }
-
-
-
-                // for each virtual line segment, compute the intersection of its projection and the line segments
-                for (size_t indexVLS = 0; indexVLS < vVLS.size(); indexVLS++){
-
-                    VirtualLineSegment& vls = vVLS[indexVLS];
-
-                    cv::Point2f startVLS2f = pKF->ProjectPointOnCamera(vls.mpMPStart->GetWorldPos());
-                    cv::Point2f endVLS2f = pKF->ProjectPointOnCamera(vls.mpMPEnd->GetWorldPos());
-
-                    // test if the virtual line segment is in image, this should be always be false
-                    if (startVLS2f.x < 0 || startVLS2f.y < 0 || endVLS2f.x < 0 || endVLS2f.y < 0)
-                        continue;
-
-                    cv::Point2f seVLS2f = endVLS2f - startVLS2f;
-
-//                    std::cout << "norm seVLS2f " << std::to_string(norm(seVLS2f)) << std::endl;
-
-                    // filter out virtual line segments that the pair of points are too far away
-                    if (cv::norm(seVLS2f) > 500 || cv::norm(seVLS2f) < 5)
-                        continue;
-
-                    //TODO: avoid compute intersections in the same keyframe
-                    std::vector<LineSegment>& vLS = mvLSpKF[pKF];
-
-//                    std::cout << "vLS size " << std::to_string(vLS.size()) << std::endl;
-
-                    for (size_t indexLS = 0; indexLS < vLS.size(); indexLS++){
-
-                        LineSegment& line = vLS[indexLS];
-
-                        // find intersection on image
-                        // http://stackoverflow.com/questions/563198/how-do-you-detect-where-two-line-segments-intersect
-                        cv::Point2f startLS2f = line.mStart;
-                        cv::Point2f endLS2f = line.mEnd;
-
-                        cv::Point2f seLS2f = endLS2f - startLS2f;
-
-                        double rxs = seVLS2f.cross(seLS2f);
-
-                        // if rxs is zero
-                        if (abs(rxs) <= std::numeric_limits<double>::epsilon() )
-                            continue;
-
-                        double tVLS = (startLS2f - startVLS2f).cross(seLS2f) / rxs;
-                        double uLS = (startLS2f - startVLS2f).cross(seVLS2f) / rxs;
-
-                        // if not intersected with detected line segment
-                        if (uLS < 0.0 || uLS > 1.0)
-                            continue;
-
-                        cv::Point2f intersect2f = startLS2f + uLS * seLS2f;
-
-                        // intersection found, project it to 3d and to second keyframe
-                        cv::Mat TwcKF = pKF->GetPoseInverse();
-                        cv::Mat RwcKF = TwcKF.rowRange(0,3).colRange(0,3);
-                        cv::Mat twcKF = TwcKF.rowRange(0,3).col(3);
-                        float PcX = (intersect2f.x - pKF->cx) / pKF->fx;
-                        float PcY = (intersect2f.y - pKF->cy) / pKF->fy;
-
-                        cv::Mat Pc = cv::Mat(3, 1, CV_32F);
-                        Pc.at<float>(0) = PcX;
-                        Pc.at<float>(1) = PcY;
-                        Pc.at<float>(2) = 1.0;
-
-                        // position of the line-crossing in world coordinate
-                        cv::Mat Pw = RwcKF * Pc + twcKF;
-
-                        // compute intersection between the ray from camera center towards line-crossing and the 3D VLS
-                        // http://mathworld.wolfram.com/Line-LineIntersection.html
-                        cv::Point3f Pw3f(Pw);
-                        cv::Point3f Ow3f(twcKF);
-                        cv::Point3f seOP3f = Pw3f - Ow3f;
-
-                        cv::Point3f startVLS3f = vls.mStart;
-                        cv::Point3f endVLS3f = vls.mEnd;
-                        cv::Point3f seVLS3f = endVLS3f - startVLS3f;
-
-                        cv::Point3f axbOP = seVLS3f.cross(seOP3f);
-                        double normaxb = norm(axbOP);
-
-                        // if norm of axb is zero
-                        if (abs(normaxb) <= std::numeric_limits<double>::epsilon() )
-                            continue;
-
-                        double sVLS = (Ow3f - startVLS3f).cross(seOP3f).dot(axbOP) / std::pow(normaxb,2.0);
-
-                        // intersection of ray and VLS, should always be on the line of VLS
-                        cv::Point3f intersect3f = startVLS3f + sVLS * seVLS3f;
-
-                        cv::Mat intersect3D = cv::Mat(3, 1, CV_32F);
-                        intersect3D.at<float>(0) = intersect3f.x;
-                        intersect3D.at<float>(1) = intersect3f.y;
-                        intersect3D.at<float>(2) = intersect3f.z;
-
-                        // project 3D intersection onto the second keyframe
-                        cv::Point2f lineCrossMatch = pKFMatch->ProjectPointOnCamera(intersect3D);
-                        if (lineCrossMatch.x < 0 || lineCrossMatch.y < 0)
-                            continue;
-
-                        // loop through line segments in the second keyframe, find if the point is on a line segment
-                        std::vector<LineSegment>& vLSMatch = mvLSpKF[pKFMatch];
-
-//                        std::cout << "vLSMatch size " << std::to_string(vLSMatch.size()) << std::endl;
-
-                        for (size_t indexLSMatch = 0; indexLSMatch < vLSMatch.size(); indexLSMatch++){
-                            LineSegment& lineMatch = vLSMatch[indexLSMatch];
-                            cv::Point2f startLSMatch2f = lineMatch.mStart;
-                            cv::Point2f endLSMatch2f = lineMatch.mEnd;
-
-                            // if the point is on a line segment
-                            cv::Point2f LCS = lineCrossMatch-startLSMatch2f;
-                            cv::Point2f seLSMatch2f = endLSMatch2f - startLSMatch2f;
-                            double distSE = cv::norm(seLSMatch2f);
-
-                            double distLCLS;
-                            if (distSE == 0.0) {
-                                distLCLS = cv::norm(LCS);
-                            } else {
-                                double t = std::max(0.0, std::min(1.0, (lineCrossMatch - startLSMatch2f).dot(seLSMatch2f) /
-                                                                       std::pow(distSE, 2.0)));
-                                cv::Point2f projLCLS = startLSMatch2f + t * seLSMatch2f;
-
-                                distLCLS = cv::norm(lineCrossMatch - projLCLS);
-                            }
-
-                            // the distance is not small enough (in pixel)
-                            if (distLCLS > 0.1)
-                                continue;
-
-                            // compute intersection of vls and the ls to match
-                            cv::Point2f startVLS2fMatch = pKFMatch->ProjectPointOnCamera(vls.mpMPStart->GetWorldPos());
-                            cv::Point2f endVLS2fMatch = pKFMatch->ProjectPointOnCamera(vls.mpMPEnd->GetWorldPos());
-
-                            // test if the virtual line segment is in image, this should be always be false
-                            if (startVLS2fMatch.x < 0 || startVLS2fMatch.y < 0 || endVLS2fMatch.x < 0 || endVLS2fMatch.y < 0)
-                                continue;
-
-                            cv::Point2f seVLS2fMatch = endVLS2fMatch - startVLS2fMatch;
-
-                            // find intersection on image to match
-                            // http://stackoverflow.com/questions/563198/how-do-you-detect-where-two-line-segments-intersect
-                            double rxsMatch = seVLS2fMatch.cross(seLSMatch2f);
-
-                            // if rxs is zero
-                            if (abs(rxsMatch) <= std::numeric_limits<double>::epsilon() )
-                                continue;
-
-                            double tVLSMatch = (startLSMatch2f - startVLS2fMatch).cross(seLSMatch2f) / rxsMatch;
-                            double uLSMatch = (startLSMatch2f - startVLS2fMatch).cross(seVLS2fMatch) / rxsMatch;
-
-                            // if not intersected with detected line segment
-                            if (uLSMatch < 0.0 || uLSMatch > 1.0)
-                                continue;
-
-                            cv::Point2f intersectMatch2f = startLSMatch2f + uLSMatch * seLSMatch2f;
-
-                            double distLCIntersectMatch = cv::norm(lineCrossMatch - intersectMatch2f);
-
-                            // the distance is small enough (in pixel)
-                            if (distLCIntersectMatch <= 0.01){
-                                // there is a match, save it in the virtual line segment
-                                LinePoint lp(intersect3f);
-                                lp.addRefLineSegment(&line);
-                                lp.addRefLineSegment(&lineMatch);
-                                vls.mvLPs.push_back(lp);
-                                // add to the maps for line segment matches
-                                mpLSvLP[&line].push_back(lp);
-                                mpLSvLP[&lineMatch].push_back(lp);
-//                                std::cout << "A line point created" << std::endl;
-                            }
-
-                        }
-
-                    }
-
-                }
-
-                // find matches for line segments
-                std::map<LineSegment*, LineSegment*> mpLSpLSMatch;
-                std::map<LineSegment*,std::vector<LinePoint>> mpLSpLSMatchvLP;
-
-                std::map<LineSegment*, LineSegment*> mpLSMatchpLS;
-                std::map<LineSegment*,std::vector<LinePoint>> mpLSMatchpLSvLP;
-
-
-                // find line segment in match kf that shares most line points with original kf
-                for (size_t indexLS = 0; indexLS < mvLSpKF[pKF].size(); indexLS++) {
-                    LineSegment* pLS = &(mvLSpKF[pKF][indexLS]);
-                    std::vector<LinePoint>& vLP = mpLSvLP[pLS];
-                    LineSegment* pLSMaxMatch = NULL;
-                    std::vector<LinePoint> vLPonLSMaxMatch;
-                    for (size_t indexLSMatch = 0; indexLSMatch < mvLSpKF[pKFMatch].size(); indexLSMatch++){
-                        LineSegment* pLSMatch = &(mvLSpKF[pKFMatch][indexLSMatch]);
-                        std::vector<LinePoint>& vLPinLSMatch = mpLSvLP[pLSMatch];
-                        // get common line points
-                        std::vector<LinePoint> vLPonLS;
-                        for (size_t indexLPinLS = 0; indexLPinLS < vLP.size(); indexLPinLS++){
-                            if (std::find(vLPinLSMatch.begin(), vLPinLSMatch.end(), vLP[indexLPinLS]) != vLPinLSMatch.end()){
-                                vLPonLS.push_back(vLP[indexLPinLS]);
-                            }
-                        }
-                        if (vLPonLS.size() < 10) {
-                            vLPonLS.clear();
-                            continue;
-                        }
-
-                        // keep line segment that shares the most line points
-                        if (pLSMaxMatch != NULL){
-                            if (vLPonLS.size() <= vLPonLSMaxMatch.size()) {
-                                continue;
-                            }
-                        }
-                        pLSMaxMatch = pLSMatch;
-                        vLPonLSMaxMatch.clear();
-                        vLPonLSMaxMatch.insert(vLPonLSMaxMatch.end(), vLPonLS.begin(), vLPonLS.end());
-                    }
-                    // insert into map
-                    mpLSpLSMatch.insert(std::map<LineSegment*,LineSegment*>::value_type(pLS, pLSMaxMatch));
-                    mpLSpLSMatchvLP.insert(std::map<LineSegment*,std::vector<LinePoint>>::value_type(pLS, vLPonLSMaxMatch));
-
-//                    std::cout << "Size of vpLPonLSMaxMatch: " << std::to_string(vpLPonLSMaxMatch.size()) << std::endl;
-                }
-
-                // find line segment in original kf that shares most line points with match kf
-                for (size_t indexLS = 0; indexLS < mvLSpKF[pKFMatch].size(); indexLS++) {
-                    LineSegment* pLS = &(mvLSpKF[pKFMatch][indexLS]);
-                    std::vector<LinePoint>& vLP = mpLSvLP[pLS];
-                    LineSegment* pLSMaxMatch = NULL;
-                    std::vector<LinePoint> vLPonLSMaxMatch;
-                    for (size_t indexLSMatch = 0; indexLSMatch < mvLSpKF[pKF].size(); indexLSMatch++){
-                        LineSegment* pLSMatch = &(mvLSpKF[pKF][indexLSMatch]);
-                        std::vector<LinePoint>& vLPinLSMatch = mpLSvLP[pLSMatch];
-                        // get common line points
-                        std::vector<LinePoint> vLPonLS;
-                        for (size_t indexLPinLS = 0; indexLPinLS < vLP.size(); indexLPinLS++){
-                            if (std::find(vLPinLSMatch.begin(), vLPinLSMatch.end(), vLP[indexLPinLS]) != vLPinLSMatch.end()){
-                                vLPonLS.push_back(vLP[indexLPinLS]);
-                            }
-                        }
-                        if (vLPonLS.size() < 5) {
-                            vLPonLS.clear();
-                            continue;
-                        }
-
-                        // keep line segment that shares the most line points
-                        if (pLSMaxMatch != NULL){
-                            if (vLPonLS.size() <= vLPonLSMaxMatch.size()) {
-                                continue;
-                            }
-                        }
-                        pLSMaxMatch = pLSMatch;
-                        vLPonLSMaxMatch.clear();
-                        vLPonLSMaxMatch.insert(vLPonLSMaxMatch.end(), vLPonLS.begin(), vLPonLS.end());
-                    }
-                    // insert into map
-                    mpLSMatchpLS.insert(std::map<LineSegment*,LineSegment*>::value_type(pLS, pLSMaxMatch));
-                    mpLSMatchpLSvLP.insert(std::map<LineSegment*,std::vector<LinePoint>>::value_type(pLS, vLPonLSMaxMatch));
-
-//                    std::cout << "Size of vpLPonLSMaxMatch: " << std::to_string(vpLPonLSMaxMatch.size()) << std::endl;
-                }
-
-                // check mutual max
-                for (size_t indexLS = 0; indexLS < mvLSpKF[pKF].size(); indexLS++) {
-                    LineSegment* pLS = &(mvLSpKF[pKF][indexLS]);
-                    LineSegment* pLSMaxMatch = mpLSpLSMatch[pLS];
-
-                    if (pLSMaxMatch == NULL)
-                        continue;
-
-                    if (mpLSMatchpLS[pLSMaxMatch] == pLS){
-
-//                        std::cout << "A mutual max found" << std::endl;
-
-                        // check if same number of line points, should always be false
-                        if (mpLSMatchpLSvLP[pLSMaxMatch].size() != mpLSpLSMatchvLP[pLS].size())
-                            continue;
-
-//                        std::cout << "Same number of line points" << std::endl;
-
-                        // save the common line points to output list
-                        // TODO: might have multiple line points at same 3d position
-                        std::vector<LinePoint>& vLPCommon = mpLSpLSMatchvLP[pLS];
-                        for (size_t indexCommonLP = 0; indexCommonLP < vLPCommon.size(); indexCommonLP++){
-                            LinePoint lpCommon = vLPCommon[indexCommonLP];
-                            // make a copy of the line point in vector, not copying the ref list
-//                            LinePoint lpCopy(plpCommon->mP);
-                            vLPOnLineMatched.push_back(lpCommon);
-//                            std::cout << "A common line point added" << std::endl;
-                        }
-                    }
-                }
-
-                std::cout << "#Line points on matched line segments: " << std::to_string(vLPOnLineMatched.size()) << std::endl;
-
-
-                // save all virtual line segments matched in the two keyframes into the set
-                for (size_t indexVLS = 0; indexVLS < vVLS.size(); indexVLS++) {
-                    VirtualLineSegment& vls = vVLS[indexVLS];
-                    // avoid adding VLS that have less than threshold line point matches
-                    if (vls.mvLPs.size() < 3)
-                        continue;
-
-                    // avoid adding duplicate virtual line segment
-                    size_t indexVLSAll;
-                    // find duplicate VLS index
-                    // TODO: change it to be more efficient
-                    for (indexVLSAll = 0; indexVLSAll < vVLSAll.size(); indexVLSAll++) {
-                        if (vls == vVLSAll[indexVLSAll])
-                            break;
-                    }
-                    if (indexVLSAll < vVLSAll.size()) {
-                        VirtualLineSegment &vlsRef = vVLSAll[indexVLSAll];
-                        for (size_t indexVLSLP = 0; indexVLSLP < vls.mvLPs.size(); indexVLSLP++){
-                            LinePoint& lp = vls.mvLPs[indexVLSLP];
-                            // find existing line point in the VLS's list
-                            // TODO: change it to be more efficient
-                            size_t indexVLSRefLP;
-                            for (indexVLSRefLP = 0; indexVLSRefLP < vlsRef.mvLPs.size(); indexVLSRefLP++) {
-                                if (lp == vlsRef.mvLPs[indexVLSLP])
-                                    break;
-                            }
-                            if (indexVLSRefLP < vlsRef.mvLPs.size()) {
-                                LinePoint &lpRef = vlsRef.mvLPs[indexVLSRefLP];
-                                std::set<LineSegment*>::iterator itLS;
-                                for (itLS = lp.mspLSs.begin(); itLS != lp.mspLSs.end(); itLS++){
-                                    lpRef.addRefLineSegment(*itLS);
-                                }
-                            } else {
-                                vlsRef.mvLPs.push_back(lp);
-                            }
-                        }
-//                            std::cout << "Found a duplicate VLS: " << std::to_string(indexVLSAll) << std::endl;
-                    } else {
-                        vVLSAll.push_back(vls);
-                    }
-
-                }
-
+                // if a match found
+                vpMPMatched.push_back(*it);
             }
 
+            // all combinations of pairs of matched points between two keyframes
+            std::vector<VirtualLineSegment> vVLS;
+
+            for (size_t indexMPStart = 0; indexMPStart < vpMPMatched.size(); indexMPStart++){
+                for (size_t indexMPEnd = indexMPStart+1; indexMPEnd < vpMPMatched.size(); indexMPEnd++) {
+                    VirtualLineSegment vls(vpMPMatched[indexMPStart], vpMPMatched[indexMPEnd]);
+                    vVLS.push_back(vls);
+                }
+            }
+
+            std::cout << "Keyframe " << std::to_string(pKF->mnId) << "<->" << std::to_string(pKFMatch->mnId)
+                      << " #VLS:" << std::to_string(vVLS.size()) << " #Matched points: "
+                      << std::to_string(vpMPMatched.size())<< std::endl;
+
+
+            // map for finding line segment matches
+            std::map<LineSegment*,std::vector<LinePoint>> mpLSvLP;
+
+            // initialize the map
+            for (size_t indexLS = 0; indexLS < mvLSpKF[pKF].size(); indexLS++) {
+                LineSegment* pLS = &mvLSpKF[pKF][indexLS];
+                std::vector<LinePoint> vLP;
+                mpLSvLP.insert(std::map<LineSegment*,std::vector<LinePoint>>::value_type(pLS, vLP));
+            }
+            for (size_t indexLS = 0; indexLS < mvLSpKF[pKFMatch].size(); indexLS++) {
+                LineSegment* pLS = &mvLSpKF[pKFMatch][indexLS];
+                std::vector<LinePoint> vLP;
+                mpLSvLP.insert(std::map<LineSegment*,std::vector<LinePoint>>::value_type(pLS, vLP));
+            }
+
+            // vls extension ratio
+            const double MAX_VLS_LEN = 200;
+            // line points matching threshold
+            const double MIM_VLS_LEN = 5;
+            // vls extension ratio
+            const double VLS_EXTEND = 2.0;
+            // line points matching threshold
+            const double TH_LP_MATCH = 0.1;
+            // threshold of number of line points on line segment
+            const unsigned long TH_LPONLS = 5;
+
+            // for each virtual line segment, compute the intersection of its projection and the line segments
+            for (size_t indexVLS = 0; indexVLS < vVLS.size(); indexVLS++){
+
+                VirtualLineSegment& vls = vVLS[indexVLS];
+
+                cv::Point2f startVLS2f = pKF->ProjectPointOnCamera(vls.mpMPStart->GetWorldPos());
+                cv::Point2f endVLS2f = pKF->ProjectPointOnCamera(vls.mpMPEnd->GetWorldPos());
+                // test if the virtual line segment is in image, this should be always be false
+                if (startVLS2f.x < 0 || startVLS2f.y < 0 || endVLS2f.x < 0 || endVLS2f.y < 0)
+                    continue;
+                cv::Point2f seVLS2f = endVLS2f - startVLS2f;
+                // filter out virtual line segments that the pair of points are too far away
+                if (cv::norm(seVLS2f) > MAX_VLS_LEN || cv::norm(seVLS2f) < MIM_VLS_LEN)
+                    continue;
+
+                // vls in second keyframe
+                cv::Point2f startVLS2fMatch = pKFMatch->ProjectPointOnCamera(vls.mpMPStart->GetWorldPos());
+                cv::Point2f endVLS2fMatch = pKFMatch->ProjectPointOnCamera(vls.mpMPEnd->GetWorldPos());
+                // test if the virtual line segment is in image, this should be always be false
+                if (startVLS2fMatch.x < 0 || startVLS2fMatch.y < 0 || endVLS2fMatch.x < 0 || endVLS2fMatch.y < 0)
+                    continue;
+                cv::Point2f seVLS2fMatch = endVLS2fMatch - startVLS2fMatch;
+                // filter out virtual line segments that the pair of points are too far away
+                if (cv::norm(seVLS2fMatch) > MAX_VLS_LEN || cv::norm(seVLS2fMatch) < MIM_VLS_LEN)
+                    continue;
+
+                // line segments in the first keyframe
+                std::vector<LineSegment>& vLS = mvLSpKF[pKF];
+                // compute all intersections on the VLS
+                std::vector<std::pair<LineSegment*,cv::Point3f>> vls3fIntersects;
+                std::map<LineSegment*,double> mpLSuLS;
+
+                for (size_t indexLS = 0; indexLS < vLS.size(); indexLS++) {
+                    LineSegment &line = vLS[indexLS];
+
+                    // find intersection on image
+                    // http://stackoverflow.com/questions/563198/how-do-you-detect-where-two-line-segments-intersect
+                    cv::Point2f startLS2f = line.mStart;
+                    cv::Point2f endLS2f = line.mEnd;
+                    cv::Point2f seLS2f = endLS2f - startLS2f;
+
+                    double rxs = seVLS2f.cross(seLS2f);
+                    // if rxs is zero
+                    if (abs(rxs) <= std::numeric_limits<double>::epsilon())
+                        continue;
+
+                    double tVLS = (startLS2f - startVLS2f).cross(seLS2f) / rxs;
+                    double uLS = (startLS2f - startVLS2f).cross(seVLS2f) / rxs;
+                    // if not intersected with detected line segment
+                    if (uLS < 0.0 || uLS > 1.0)
+                        continue;
+                    double vlsExtend = VLS_EXTEND;
+                    // if not intersected with VLS with some expansion
+                    if (tVLS < 0 - vlsExtend / 2 || tVLS > 1 + vlsExtend / 2)
+                        continue;
+
+                    cv::Point2f intersect2f = startLS2f + uLS * seLS2f;
+
+                    // intersection found, project it to 3d
+                    cv::Mat TwcKF = pKF->GetPoseInverse();
+                    cv::Mat RwcKF = TwcKF.rowRange(0, 3).colRange(0, 3);
+                    cv::Mat twcKF = TwcKF.rowRange(0, 3).col(3);
+                    float PcX = (intersect2f.x - pKF->cx) / pKF->fx;
+                    float PcY = (intersect2f.y - pKF->cy) / pKF->fy;
+
+                    cv::Mat Pc = cv::Mat(3, 1, CV_32F);
+                    Pc.at<float>(0) = PcX;
+                    Pc.at<float>(1) = PcY;
+                    Pc.at<float>(2) = 1.0;
+
+                    // position of the line-crossing in world coordinate
+                    cv::Mat Pw = RwcKF * Pc + twcKF;
+
+                    // compute intersection between the ray from camera center towards line-crossing and the 3D VLS
+                    // http://mathworld.wolfram.com/Line-LineIntersection.html
+                    cv::Point3f Pw3f(Pw);
+                    cv::Point3f Ow3f(twcKF);
+                    cv::Point3f seOP3f = Pw3f - Ow3f;
+
+                    cv::Point3f startVLS3f = vls.mStart;
+                    cv::Point3f endVLS3f = vls.mEnd;
+                    cv::Point3f seVLS3f = endVLS3f - startVLS3f;
+
+                    cv::Point3f axbOP = seVLS3f.cross(seOP3f);
+                    double normaxb = norm(axbOP);
+                    // if norm of axb is zero, parallel
+                    if (abs(normaxb) <= std::numeric_limits<double>::epsilon())
+                        continue;
+
+                    double sVLS = (Ow3f - startVLS3f).cross(seOP3f).dot(axbOP) / std::pow(normaxb, 2.0);
+
+                    // intersection of ray and VLS, should always be on the line of VLS
+                    cv::Point3f intersect3f = startVLS3f + sVLS * seVLS3f;
+
+                    vls3fIntersects.push_back(std::make_pair(&line,intersect3f));
+                    mpLSuLS.insert(std::map<LineSegment*,double>::value_type(&line,uLS));
+                }
+
+                // line segments in second keyframe
+                std::vector<LineSegment>& vLSMatch = mvLSpKF[pKFMatch];
+                // compute all intersections on the VLS in second keyframe
+                std::vector<std::pair<LineSegment*,cv::Point2f>> vls2fIntersectsMatch;
+                std::map<LineSegment*,double> mpLSuLSMatch;
+
+                for (size_t indexLSMatch = 0; indexLSMatch < vLSMatch.size(); indexLSMatch++) {
+                    LineSegment &lineMatch = vLSMatch[indexLSMatch];
+                    cv::Point2f startLSMatch2f = lineMatch.mStart;
+                    cv::Point2f endLSMatch2f = lineMatch.mEnd;
+
+                    cv::Point2f seLSMatch2f = endLSMatch2f - startLSMatch2f;
+
+                    // find intersection on image to match
+                    // http://stackoverflow.com/questions/563198/how-do-you-detect-where-two-line-segments-intersect
+                    double rxsMatch = seVLS2fMatch.cross(seLSMatch2f);
+                    // if rxs is zero
+                    if (abs(rxsMatch) <= std::numeric_limits<double>::epsilon())
+                        continue;
+
+                    double tVLSMatch = (startLSMatch2f - startVLS2fMatch).cross(seLSMatch2f) / rxsMatch;
+                    double uLSMatch = (startLSMatch2f - startVLS2fMatch).cross(seVLS2fMatch) / rxsMatch;
+
+                    // if not intersected with detected line segment
+                    if (uLSMatch < 0.0 || uLSMatch > 1.0)
+                        continue;
+                    double vlsMatchExtend = VLS_EXTEND;
+                    // if not intersected with VLS with some expansion
+                    if (tVLSMatch < 0 - vlsMatchExtend / 2 || tVLSMatch > 1 + vlsMatchExtend / 2)
+                        continue;
+
+                    cv::Point2f intersectMatch2f = startLSMatch2f + uLSMatch * seLSMatch2f;
+
+                    // don't need to compute 3d from here as we are comparing in image coordinate
+                    vls2fIntersectsMatch.push_back(std::make_pair(&lineMatch, intersectMatch2f));
+                    mpLSuLSMatch.insert(std::map<LineSegment*,double>::value_type(&lineMatch,uLSMatch));
+                }
+
+                // temp map for line segment and line points
+                std::vector<LineSegment*> vpLStemp;
+                std::vector<LineSegment*> vpLSMatchtemp;
+                std::vector<LinePoint> vLPtemp;
+
+                // loop through all intersections to find corresponding ones
+                for (size_t indIntersect = 0; indIntersect < vls3fIntersects.size(); indIntersect++) {
+                    LineSegment *line = vls3fIntersects[indIntersect].first;
+                    cv::Point3f intersect3f = vls3fIntersects[indIntersect].second;
+
+                    cv::Mat intersect3D = cv::Mat(3, 1, CV_32F);
+                    intersect3D.at<float>(0) = intersect3f.x;
+                    intersect3D.at<float>(1) = intersect3f.y;
+                    intersect3D.at<float>(2) = intersect3f.z;
+
+                    // project 3D intersection onto the second keyframe
+                    cv::Point2f lineCrossMatch = pKFMatch->ProjectPointOnCamera(intersect3D);
+                    if (lineCrossMatch.x < 0 || lineCrossMatch.y < 0)
+                        continue;
+
+                    // loop through line segment intersections in the second keyframe
+                    for (size_t indIntersectMatch = 0;
+                         indIntersectMatch < vls2fIntersectsMatch.size(); indIntersectMatch++) {
+                        LineSegment *lineMatch = vls2fIntersectsMatch[indIntersectMatch].first;
+                        cv::Point2f intersectMatch2f = vls2fIntersectsMatch[indIntersectMatch].second;
+
+                        // check distance between projection of 3D intersection and intersection in second keyframe
+                        double distLCIntersectMatch = cv::norm(lineCrossMatch - intersectMatch2f);
+                        // the distance is small enough (in pixel)
+                        if (distLCIntersectMatch <= TH_LP_MATCH) {
+                            //TODO: check tVLS and tVLSMatch here to make points better distributed and avoid duplicate points
+                            // there is a match, save it in the virtual line segment
+                            LinePoint lp(intersect3f);
+                            lp.addRefLineSegment(line, mpLSuLS[line]);
+                            lp.addRefLineSegment(lineMatch, mpLSuLSMatch[lineMatch]);
+                            vls.mvLPs.push_back(lp);
+                            // add to temp vectors
+                            vpLStemp.push_back(line);
+                            vpLSMatchtemp.push_back(lineMatch);
+                            vLPtemp.push_back(lp);
+                        }
+                    }
+                }
+
+                // check number of matches on a vls
+                if (vLPtemp.size() >= 2){
+                    for (size_t indTemp = 0; indTemp < vLPtemp.size(); indTemp++){
+                        // add to the maps for line segment matches
+                        mpLSvLP[vpLStemp[indTemp]].push_back(vLPtemp[indTemp]);
+                        mpLSvLP[vpLSMatchtemp[indTemp]].push_back(vLPtemp[indTemp]);
+                    }
+                }
+            }
+
+            //TODO: project each point onto other neighbour views and
+
+            //TODO: cluster line points to clean the line points cloud, cluster parameter depends on slam initialization
+            //TODO: merge line segment refs when cluster to have matches of line segments across keyframes
+
+            // find matches for line segments
+            std::map<LineSegment*, LineSegment*> mpLSpLSMatch;
+            std::map<LineSegment*,std::vector<LinePoint>> mpLSpLSMatchvLP;
+
+            std::map<LineSegment*, LineSegment*> mpLSMatchpLS;
+            std::map<LineSegment*,std::vector<LinePoint>> mpLSMatchpLSvLP;
+
+            // find line segment in match kf that shares most line points with original kf
+            for (size_t indexLS = 0; indexLS < mvLSpKF[pKF].size(); indexLS++) {
+                LineSegment* pLS = &(mvLSpKF[pKF][indexLS]);
+                std::vector<LinePoint>& vLP = mpLSvLP[pLS];
+                LineSegment* pLSMaxMatch = NULL;
+                std::vector<LinePoint> vLPonLSMaxMatch;
+                for (size_t indexLSMatch = 0; indexLSMatch < mvLSpKF[pKFMatch].size(); indexLSMatch++){
+                    LineSegment* pLSMatch = &(mvLSpKF[pKFMatch][indexLSMatch]);
+                    std::vector<LinePoint>& vLPinLSMatch = mpLSvLP[pLSMatch];
+                    // get common line points
+                    std::vector<LinePoint> vLPonLS;
+                    for (size_t indexLPinLS = 0; indexLPinLS < vLP.size(); indexLPinLS++){
+                        if (std::find(vLPinLSMatch.begin(), vLPinLSMatch.end(), vLP[indexLPinLS]) != vLPinLSMatch.end()){
+                            vLPonLS.push_back(vLP[indexLPinLS]);
+                        }
+                    }
+                    if (vLPonLS.size() < TH_LPONLS) {
+                        vLPonLS.clear();
+                        continue;
+                    }
+                    // keep line segment that shares the most line points
+                    if (pLSMaxMatch != NULL){
+                        if (vLPonLS.size() <= vLPonLSMaxMatch.size()) {
+                            continue;
+                        }
+                    }
+                    pLSMaxMatch = pLSMatch;
+                    vLPonLSMaxMatch.clear();
+                    vLPonLSMaxMatch.insert(vLPonLSMaxMatch.end(), vLPonLS.begin(), vLPonLS.end());
+                }
+                // insert into map
+                mpLSpLSMatch.insert(std::map<LineSegment*,LineSegment*>::value_type(pLS, pLSMaxMatch));
+                mpLSpLSMatchvLP.insert(std::map<LineSegment*,std::vector<LinePoint>>::value_type(pLS, vLPonLSMaxMatch));
+            }
+
+            // find line segment in original kf that shares most line points with match kf
+            for (size_t indexLS = 0; indexLS < mvLSpKF[pKFMatch].size(); indexLS++) {
+                LineSegment* pLS = &(mvLSpKF[pKFMatch][indexLS]);
+                std::vector<LinePoint>& vLP = mpLSvLP[pLS];
+                LineSegment* pLSMaxMatch = NULL;
+                std::vector<LinePoint> vLPonLSMaxMatch;
+                for (size_t indexLSMatch = 0; indexLSMatch < mvLSpKF[pKF].size(); indexLSMatch++){
+                    LineSegment* pLSMatch = &(mvLSpKF[pKF][indexLSMatch]);
+                    std::vector<LinePoint>& vLPinLSMatch = mpLSvLP[pLSMatch];
+                    // get common line points
+                    std::vector<LinePoint> vLPonLS;
+                    for (size_t indexLPinLS = 0; indexLPinLS < vLP.size(); indexLPinLS++){
+                        if (std::find(vLPinLSMatch.begin(), vLPinLSMatch.end(), vLP[indexLPinLS]) != vLPinLSMatch.end()){
+                            vLPonLS.push_back(vLP[indexLPinLS]);
+                        }
+                    }
+                    // apply threshold on number of line points on a line segment
+                    if (vLPonLS.size() < TH_LPONLS) {
+                        vLPonLS.clear();
+                        continue;
+                    }
+                    // keep line segment that shares the most line points
+                    if (pLSMaxMatch != NULL){
+                        if (vLPonLS.size() <= vLPonLSMaxMatch.size()) {
+                            continue;
+                        }
+                    }
+                    pLSMaxMatch = pLSMatch;
+                    vLPonLSMaxMatch.clear();
+                    vLPonLSMaxMatch.insert(vLPonLSMaxMatch.end(), vLPonLS.begin(), vLPonLS.end());
+                }
+                // insert into map
+                mpLSMatchpLS.insert(std::map<LineSegment*,LineSegment*>::value_type(pLS, pLSMaxMatch));
+                mpLSMatchpLSvLP.insert(std::map<LineSegment*,std::vector<LinePoint>>::value_type(pLS, vLPonLSMaxMatch));
+            }
+
+            // check mutual max
+            for (size_t indexLS = 0; indexLS < mvLSpKF[pKF].size(); indexLS++) {
+                LineSegment* pLS = &(mvLSpKF[pKF][indexLS]);
+                LineSegment* pLSMaxMatch = mpLSpLSMatch[pLS];
+
+                if (pLSMaxMatch == NULL)
+                    continue;
+
+                if (mpLSMatchpLS[pLSMaxMatch] == pLS){
+                    // check if same number of line points, should always be false
+                    if (mpLSMatchpLSvLP[pLSMaxMatch].size() != mpLSpLSMatchvLP[pLS].size())
+                        continue;
+                    // check the number of line points, should always be false
+                    if (mpLSpLSMatchvLP[pLS].size() < TH_LPONLS)
+                        continue;
+
+                    // check spatial order of line points
+                    std::vector<LinePoint>& vLPCommon = mpLSpLSMatchvLP[pLS];
+                    size_t N = vLPCommon.size();
+                    // compute Kendall distance
+                    double K = 0;
+                    for (size_t indexLPi = 0; indexLPi < N; indexLPi++){
+                        for (size_t indexLPj = indexLPi+1; indexLPj < N; indexLPj++){
+                            double ui = vLPCommon[indexLPi].mmpLSuLS[pLS];
+                            double uj = vLPCommon[indexLPj].mmpLSuLS[pLS];
+                            double sigmai = vLPCommon[indexLPi].mmpLSuLS[pLSMaxMatch];
+                            double sigmaj = vLPCommon[indexLPj].mmpLSuLS[pLSMaxMatch];
+                            // reverse logic to prevent same u
+                            //TODO: do something to points with same u
+                            if ( !((ui < uj && sigmai < sigmaj) || (ui > uj && sigmai > sigmaj)) ){
+                                K += 1;
+                            }
+                        }
+                    }
+                    // compute number of good points
+                    double Khat = 2*K/(N*(N-1));
+                    double NG = computeNG(N,Khat);
+
+                    // filter out line segment matches doesn't have enough good points
+                    if (NG < 0.9*N)
+                        continue;
+
+                    // save the common line points to output list
+                    // TODO: might have multiple line points at same 3d position across different keyframe pairs
+                    for (size_t indexCommonLP = 0; indexCommonLP < vLPCommon.size(); indexCommonLP++){
+                        LinePoint lpCommon = vLPCommon[indexCommonLP];
+                        vLPOnLineMatched.push_back(lpCommon);
+                    }
+                }
+            }
+
+            std::cout << "#Line points on matched line segments: " << std::to_string(vLPOnLineMatched.size()) << std::endl;
+
+
+            // save all virtual line segments matched in the two keyframes into the set
+            for (size_t indexVLS = 0; indexVLS < vVLS.size(); indexVLS++) {
+                VirtualLineSegment& vls = vVLS[indexVLS];
+                // avoid adding VLS that have less than threshold line point matches
+                if (vls.mvLPs.size() < 2)
+                    continue;
+
+                // avoid adding duplicate virtual line segment
+                size_t indexVLSAll;
+                // find duplicate VLS index
+                // TODO: change it to be more efficient
+                for (indexVLSAll = 0; indexVLSAll < vVLSAll.size(); indexVLSAll++) {
+                    if (vls == vVLSAll[indexVLSAll])
+                        break;
+                }
+                if (indexVLSAll < vVLSAll.size()) {
+                    VirtualLineSegment &vlsRef = vVLSAll[indexVLSAll];
+                    for (size_t indexVLSLP = 0; indexVLSLP < vls.mvLPs.size(); indexVLSLP++){
+                        LinePoint& lp = vls.mvLPs[indexVLSLP];
+                        // find existing line point in the VLS's list
+                        // TODO: change it to be more efficient
+                        size_t indexVLSRefLP;
+                        for (indexVLSRefLP = 0; indexVLSRefLP < vlsRef.mvLPs.size(); indexVLSRefLP++) {
+                            if (lp == vlsRef.mvLPs[indexVLSLP])
+                                break;
+                        }
+                        if (indexVLSRefLP < vlsRef.mvLPs.size()) {
+                            LinePoint &lpRef = vlsRef.mvLPs[indexVLSRefLP];
+                            std::map<LineSegment*,double>::iterator itLS;
+                            for (itLS = lp.mmpLSuLS.begin(); itLS != lp.mmpLSuLS.end(); itLS++){
+                                lpRef.addRefLineSegment((*itLS).first, (*itLS).second);
+                            }
+                        } else {
+                            vlsRef.mvLPs.push_back(lp);
+                        }
+                    }
+                } else {
+                    vVLSAll.push_back(vls);
+                }
+            }
         }
 
         // get line points out of virtual line segments
@@ -729,7 +801,7 @@ namespace ORB_SLAM2 {
             for (size_t indexLP = 0; indexLP < (*it).mvLPs.size(); indexLP++){
                 numTotalLP++;
                 LinePoint& currLP = (*it).mvLPs[indexLP];
-                if (currLP.mspLSs.size() >= 3) {
+                if (currLP.mmpLSuLS.size() >= 3) {
                     vLPOnLine.push_back(currLP);
                 }
             }
@@ -1065,6 +1137,7 @@ namespace ORB_SLAM2 {
 
         return im;
     }
+
 
 
 }

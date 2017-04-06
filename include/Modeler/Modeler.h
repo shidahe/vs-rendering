@@ -24,10 +24,18 @@ namespace ORB_SLAM2 {
     class LineSegment {
     public:
         LineSegment(LS* pLS){
-            mStart.x = pLS->sx;
-            mStart.y = pLS->sy;
-            mEnd.x = pLS->ex;
-            mEnd.y = pLS->ey;
+            // make line segment from left to right
+            if (pLS->sx < pLS->ex) {
+                mStart.x = pLS->sx;
+                mStart.y = pLS->sy;
+                mEnd.x = pLS->ex;
+                mEnd.y = pLS->ey;
+            } else {
+                mStart.x = pLS->ex;
+                mStart.y = pLS->ey;
+                mEnd.x = pLS->sx;
+                mEnd.y = pLS->sy;
+            }
             mpRefKF = NULL;
         }
 
@@ -50,16 +58,16 @@ namespace ORB_SLAM2 {
             return "v " + std::to_string(mP.x) + " " + std::to_string(mP.y) + " " + std::to_string(mP.z);
         }
 
-        void addRefLineSegment(LineSegment* pLS){
-            mspLSs.insert(pLS);
+        void addRefLineSegment(LineSegment* pLS, double uLS){
+            mmpLSuLS.insert(std::map<LineSegment*,double>::value_type(pLS,uLS));
         }
 
         bool operator==(const LinePoint& rhs){
             return cv::norm(rhs.mP - mP) <= EPSILON;
         }
 
-        // a list of reference line segment
-        std::set<LineSegment*> mspLSs;
+        // a map of reference line segment and the corresponding u of intersection
+        std::map<LineSegment*,double> mmpLSuLS;
         cv::Point3f mP;
         static constexpr double EPSILON = 10e-6;
     };
@@ -111,8 +119,9 @@ namespace ORB_SLAM2 {
         std::vector<cv::Point3f> GetPointsOnLineSegments(KeyFrame* pKF);
         std::vector<LinePoint> GetPointsOnLineSegmentsOffline();
         void saveLinePointToFile(std::vector<LinePoint>& vPOnLine, const std::string & strFileName);
+        double computeNG(double N, double Khat);
 
-        void AddKeyFrameEntry(KeyFrame* pKF);
+            void AddKeyFrameEntry(KeyFrame* pKF);
         void AddDeletePointEntry(MapPoint* pMP);
         void AddDeleteObservationEntry(KeyFrame* pKF, MapPoint* pMP);
         void AddAdjustmentEntry(std::set<KeyFrame*> & sAdjustSet, std::set<MapPoint*> & sMapPoints);
