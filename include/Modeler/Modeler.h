@@ -20,6 +20,7 @@ namespace ORB_SLAM2 {
     class Frame;
     class ModelDrawer;
 
+    class LinePoint;
 
     class LineSegment {
     public:
@@ -47,6 +48,33 @@ namespace ORB_SLAM2 {
         cv::Point2f mEnd;
     };
 
+    class VirtualLineSegment {
+    public:
+        VirtualLineSegment(MapPoint* pMPs, MapPoint* pMPe){
+            mpMPStart = pMPs;
+            mpMPEnd = pMPe;
+            mStart = cv::Point3f(mpMPStart->GetWorldPos());
+            mEnd = cv::Point3f(mpMPEnd->GetWorldPos());
+        }
+
+        bool operator==(const VirtualLineSegment& rhs){
+            return mpMPStart == rhs.mpMPStart || mpMPEnd == rhs.mpMPEnd;
+        }
+
+        VirtualLineSegment copy(){
+            VirtualLineSegment vls(this->mpMPStart, this->mpMPEnd);
+            vls.mvLPs.insert(vls.mvLPs.end(), this->mvLPs.begin(), this->mvLPs.end());
+            return vls;
+        }
+
+        MapPoint* mpMPStart;
+        MapPoint* mpMPEnd;
+
+        cv::Point3f mStart;
+        cv::Point3f mEnd;
+
+        std::vector<LinePoint> mvLPs;
+    };
 
     class LinePoint {
     public:
@@ -62,6 +90,10 @@ namespace ORB_SLAM2 {
             mmpLSuLS.insert(std::map<LineSegment*,double>::value_type(pLS,uLS));
         }
 
+        void addRefVLS(KeyFrame* pKF, VirtualLineSegment& vls){
+            mmpKFVLS.insert(std::map<KeyFrame*,VirtualLineSegment>::value_type(pKF,vls.copy()));
+        }
+
         bool operator==(const LinePoint& rhs){
             return cv::norm(rhs.mP - mP) <= EPSILON;
         }
@@ -69,31 +101,11 @@ namespace ORB_SLAM2 {
         // a map of reference line segment and the corresponding u of intersection
         std::map<LineSegment*,double> mmpLSuLS;
         cv::Point3f mP;
+        std::map<KeyFrame*,VirtualLineSegment> mmpKFVLS;
         static constexpr double EPSILON = 10e-6;
     };
 
 
-    class VirtualLineSegment {
-    public:
-        VirtualLineSegment(MapPoint* pMPs, MapPoint* pMPe){
-            mpMPStart = pMPs;
-            mpMPEnd = pMPe;
-            mStart = cv::Point3f(mpMPStart->GetWorldPos());
-            mEnd = cv::Point3f(mpMPEnd->GetWorldPos());
-        }
-
-        bool operator==(const VirtualLineSegment& rhs){
-            return mpMPStart == rhs.mpMPStart || mpMPEnd == rhs.mpMPEnd;
-        }
-
-        MapPoint* mpMPStart;
-        MapPoint* mpMPEnd;
-
-        cv::Point3f mStart;
-        cv::Point3f mEnd;
-
-        std::vector<LinePoint> mvLPs;
-    };
 
 
     class Modeler {
