@@ -418,10 +418,10 @@ namespace ORB_SLAM2 {
                 mpLSvLP.insert(std::map<LineSegment*,std::vector<LinePoint>>::value_type(pLS, vLP));
             }
 
-            const double MAX_VLS_LEN = 200;
-            const double MIM_VLS_LEN = 5;
+            const double MAX_VLS_LEN = 1000;
+            const double MIM_VLS_LEN = 10;
             // vls extension ratio
-            const double VLS_EXTEND = 5.0;
+            const double VLS_EXTEND = 1.0;
             // line points matching threshold
             const double TH_LP_MATCH = 0.5;
             // threshold of number of line points on line segment
@@ -734,9 +734,9 @@ namespace ORB_SLAM2 {
                             }
                         }
                     }
-//                    // filter out line segment matches that have too much order inversion
-//                    if (K > 10)
-//                        continue;
+                    // filter out line segment matches that have too much order inversion
+                    if (K > 5)
+                        continue;
 
                     // compute number of good points
                     double Khat = 2*K/(N*(N-1));
@@ -805,9 +805,9 @@ namespace ORB_SLAM2 {
                             if (startVLS2fNB.x < 0 || startVLS2fNB.y < 0 || endVLS2fNB.x < 0 || endVLS2fNB.y < 0)
                                 continue;
                             cv::Point2f seVLS2fNB = endVLS2fNB - startVLS2fNB;
-//                            // filter out virtual line segments that the pair of points are too far away
-//                            if (cv::norm(seVLS2fNB) > MAX_VLS_LEN || cv::norm(seVLS2fNB) < MIM_VLS_LEN)
-//                                continue;
+                            // filter out virtual line segments that the pair of points are too far away
+                            if (cv::norm(seVLS2fNB) > MAX_VLS_LEN || cv::norm(seVLS2fNB) < MIM_VLS_LEN)
+                                continue;
 
                             for (size_t indexLSNB = 0; indexLSNB < vLSNB.size(); indexLSNB++) {
                                 LineSegment &lineNB = vLSNB[indexLSNB];
@@ -839,7 +839,7 @@ namespace ORB_SLAM2 {
                                 // check distance between projection of 3D intersection and intersection in second keyframe
                                 double distLCIntersectNB = cv::norm(lpOnKFNB - intersectNB2f);
                                 // the distance is small enough (in pixel)
-                                if (distLCIntersectNB <= TH_LP_MATCH) {
+                                if (distLCIntersectNB <= TH_LP_MATCH*2) {
                                     nSupportedView++;
                                 }
                             }
@@ -966,7 +966,7 @@ namespace ORB_SLAM2 {
         std::vector<LinePoint> vLPScoreMapPoint;
         std::vector<MapPoint*> vpMPBestScore;
         for (auto it = mpMPScore.begin(); it != mpMPScore.end(); it++){
-            if (it->second >= 5){
+            if (it->second >= 2){
                 vpMPBestScore.push_back(it->first);
                 LinePoint lpMapPoint(cv::Point3f(it->first->GetWorldPos()));
                 vLPScoreMapPoint.push_back(lpMapPoint);
