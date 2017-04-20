@@ -118,6 +118,7 @@ public:
 
     //carv:: new methods
     cv::Point2f ProjectPointOnCamera(cv::Mat Pw);
+    cv::Mat TransformPointWtoC(cv::Mat Pw);
     Map* GetMap();
     KeyFrame(KeyFrame* pKF);
 

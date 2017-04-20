@@ -365,14 +365,14 @@ namespace ORB_SLAM2 {
             // find all matched points in two keyframes
             for (std::set<MapPoint*>::iterator it = vpMP.begin(); it != vpMP.end(); it++){
                 // only keep a fixed number of matched points
-                if (vpMPMatched.size() >= 100)
+                if (vpMPMatched.size() >= 200)
                     break;
 
                 // filter out bad map points
                 if ((*it)->isBad())
                     continue;
                 // only keep confident points
-                if ((*it)->Observations() < 10)
+                if ((*it)->Observations() < 5)
                     continue;
 
                 std::set<MapPoint*>::iterator itMatch;
@@ -418,12 +418,14 @@ namespace ORB_SLAM2 {
                 mpLSvLP.insert(std::map<LineSegment*,std::vector<LinePoint>>::value_type(pLS, vLP));
             }
 
-            const double MAX_VLS_LEN = 1000;
-            const double MIM_VLS_LEN = 10;
+            const double MAX_VLS_LEN = 500;
+            const double MIM_VLS_LEN = 5;
+            // threshold for vls and line segment angle
+            const double MAX_VLS_ANGLE = 80;
             // vls extension ratio
-            const double VLS_EXTEND = 1.0;
+            const double VLS_EXTEND = 5.0;
             // line points matching threshold
-            const double TH_LP_MATCH = 0.5;
+            const double TH_LP_MATCH = 5.0;
             // threshold of number of line points on line segment
             const unsigned long TH_LPONLS = 5;
 
@@ -431,6 +433,24 @@ namespace ORB_SLAM2 {
             for (size_t indexVLS = 0; indexVLS < vVLS.size(); indexVLS++){
 
                 VirtualLineSegment& vls = vVLS[indexVLS];
+
+                // make sure the VLS is not perpendicular with the camera plane
+                cv::Mat startVLS3Mat = pKF->TransformPointWtoC(vls.mpMPStart->GetWorldPos());
+                cv::Mat endVLS3Mat = pKF->TransformPointWtoC(vls.mpMPEnd->GetWorldPos());
+                float diffx = std::abs(endVLS3Mat.at<float>(0) - startVLS3Mat.at<float>(0));
+                float diffy = std::abs(endVLS3Mat.at<float>(1) - startVLS3Mat.at<float>(1));
+                double angleToCamera = cv::fastAtan2(diffy, diffx) * 180 / CV_PI;
+                if (angleToCamera > MAX_VLS_ANGLE)
+                    continue;
+
+                // make sure the VLS is not perpendicular with the camera plane
+                cv::Mat startVLS3MatMatch = pKFMatch->TransformPointWtoC(vls.mpMPStart->GetWorldPos());
+                cv::Mat endVLS3MatMatch = pKFMatch->TransformPointWtoC(vls.mpMPEnd->GetWorldPos());
+                float diffxMatch = std::abs(endVLS3MatMatch.at<float>(0) - startVLS3MatMatch.at<float>(0));
+                float diffyMatch = std::abs(endVLS3MatMatch.at<float>(1) - startVLS3MatMatch.at<float>(1));
+                double angleToCameraMatch = cv::fastAtan2(diffyMatch, diffxMatch) * 180 / CV_PI;
+                if (angleToCameraMatch > MAX_VLS_ANGLE)
+                    continue;
 
                 cv::Point2f startVLS2f = pKF->ProjectPointOnCamera(vls.mpMPStart->GetWorldPos());
                 cv::Point2f endVLS2f = pKF->ProjectPointOnCamera(vls.mpMPEnd->GetWorldPos());
@@ -839,7 +859,7 @@ namespace ORB_SLAM2 {
                                 // check distance between projection of 3D intersection and intersection in second keyframe
                                 double distLCIntersectNB = cv::norm(lpOnKFNB - intersectNB2f);
                                 // the distance is small enough (in pixel)
-                                if (distLCIntersectNB <= TH_LP_MATCH*2) {
+                                if (distLCIntersectNB <= TH_LP_MATCH) {
                                     nSupportedView++;
                                 }
                             }
@@ -966,7 +986,7 @@ namespace ORB_SLAM2 {
         std::vector<LinePoint> vLPScoreMapPoint;
         std::vector<MapPoint*> vpMPBestScore;
         for (auto it = mpMPScore.begin(); it != mpMPScore.end(); it++){
-            if (it->second >= 2){
+            if (it->second >= 3){
                 vpMPBestScore.push_back(it->first);
                 LinePoint lpMapPoint(cv::Point3f(it->first->GetWorldPos()));
                 vLPScoreMapPoint.push_back(lpMapPoint);

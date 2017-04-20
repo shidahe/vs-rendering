@@ -662,6 +662,13 @@ namespace ORB_SLAM2
         return vDepths[(vDepths.size()-1)/q];
     }
 
+    cv::Mat KeyFrame::TransformPointWtoC(cv::Mat Pw){
+        cv::Mat Rcw = Tcw.rowRange(0,3).colRange(0,3);
+        cv::Mat tcw = Tcw.rowRange(0,3).col(3);
+        cv::Mat Pc = Rcw * Pw + tcw;
+        return Pc;
+    }
+
     cv::Point2f KeyFrame::ProjectPointOnCamera(cv::Mat Pw){
         cv::Point2f xy;
         cv::Mat Rcw = Tcw.rowRange(0,3).colRange(0,3);
