@@ -320,6 +320,21 @@ namespace ORB_SLAM2 {
             mvLSpKF.insert(std::map<KeyFrame*,std::vector<LineSegment>>::value_type(pKF, lines));
         }
 
+
+        const double MAX_VLS_LEN = 500;
+        const double MIM_VLS_LEN = 5;
+        // threshold for vls and line segment angle
+        const double MAX_VLS_ANGLE = 80;
+        // vls extension ratio
+        const double VLS_EXTEND = 1000.0;
+        // line points matching threshold
+        const double TH_LP_MATCH = 0.3;
+        // threshold of number of line points on line segment
+        const unsigned long TH_LPONLS = 5;
+        // threshold for kf dist
+        const double TH_KF_DIST = 0.03;
+
+
         // all virtual line segments
         std::vector<VirtualLineSegment> vVLSAll;
 
@@ -332,11 +347,11 @@ namespace ORB_SLAM2 {
             KeyFrame* pKF = vpKF[vpKF.size()-1-indexKF];
 
             // only match against keyframes with best covisibility
-            std::vector<KeyFrame*> vKFBestCov5 = pKF->GetBestCovisibilityKeyFrames(5);
-            if (vKFBestCov5.size() < 5)
+            std::vector<KeyFrame*> vKFBestCov = pKF->GetBestCovisibilityKeyFrames(5);
+            if (vKFBestCov.size() < 5)
                 continue;
             // only use keyframes that are best
-            std::vector<KeyFrame*> vKFBestCov(vKFBestCov5.begin(), vKFBestCov5.begin()+1);
+//            std::vector<KeyFrame*> vKFBestCov(vKFBestCov5.begin(), vKFBestCov5.begin()+1);
 
             // get the keyframe to match
             for (size_t indKFMatch = indexKF; indKFMatch < vpKF.size(); indKFMatch++){
@@ -344,8 +359,12 @@ namespace ORB_SLAM2 {
                 // if it is not a best covisible keyframe
                 if (std::find(vKFBestCov.begin(), vKFBestCov.end(), pKFMatch) == vKFBestCov.end())
                     continue;
+                if (cv::norm(pKF->GetTranslation() - pKFMatch->GetTranslation()) < TH_KF_DIST*pKF->ComputeSceneMedianDepth(2))
+                    continue;
                 vpairPKF.push_back(std::make_pair(pKF,pKFMatch));
             }
+//            if (!vpairPKF.empty())
+//                break;
         }
 
         std::map<MapPoint*,int> mpMPScore;
@@ -418,16 +437,6 @@ namespace ORB_SLAM2 {
                 mpLSvLP.insert(std::map<LineSegment*,std::vector<LinePoint>>::value_type(pLS, vLP));
             }
 
-            const double MAX_VLS_LEN = 500;
-            const double MIM_VLS_LEN = 5;
-            // threshold for vls and line segment angle
-            const double MAX_VLS_ANGLE = 80;
-            // vls extension ratio
-            const double VLS_EXTEND = 5.0;
-            // line points matching threshold
-            const double TH_LP_MATCH = 5.0;
-            // threshold of number of line points on line segment
-            const unsigned long TH_LPONLS = 5;
 
             // for each virtual line segment, compute the intersection of its projection and the line segments
             for (size_t indexVLS = 0; indexVLS < vVLS.size(); indexVLS++){
@@ -439,7 +448,8 @@ namespace ORB_SLAM2 {
                 cv::Mat endVLS3Mat = pKF->TransformPointWtoC(vls.mpMPEnd->GetWorldPos());
                 float diffx = std::abs(endVLS3Mat.at<float>(0) - startVLS3Mat.at<float>(0));
                 float diffy = std::abs(endVLS3Mat.at<float>(1) - startVLS3Mat.at<float>(1));
-                double angleToCamera = cv::fastAtan2(diffy, diffx) * 180 / CV_PI;
+                float diffz = std::abs(endVLS3Mat.at<float>(2) - startVLS3Mat.at<float>(2));
+                double angleToCamera = cv::fastAtan2(diffz, std::sqrt(diffx*diffx + diffy*diffy)) * 180 / CV_PI;
                 if (angleToCamera > MAX_VLS_ANGLE)
                     continue;
 
@@ -448,7 +458,9 @@ namespace ORB_SLAM2 {
                 cv::Mat endVLS3MatMatch = pKFMatch->TransformPointWtoC(vls.mpMPEnd->GetWorldPos());
                 float diffxMatch = std::abs(endVLS3MatMatch.at<float>(0) - startVLS3MatMatch.at<float>(0));
                 float diffyMatch = std::abs(endVLS3MatMatch.at<float>(1) - startVLS3MatMatch.at<float>(1));
-                double angleToCameraMatch = cv::fastAtan2(diffyMatch, diffxMatch) * 180 / CV_PI;
+                float diffzMatch = std::abs(endVLS3MatMatch.at<float>(2) - startVLS3MatMatch.at<float>(2));
+                double angleToCameraMatch = cv::fastAtan2(diffzMatch, std::sqrt(diffxMatch*diffxMatch +
+                                                                                diffyMatch*diffyMatch)) * 180 / CV_PI;
                 if (angleToCameraMatch > MAX_VLS_ANGLE)
                     continue;
 
@@ -611,8 +623,10 @@ namespace ORB_SLAM2 {
 
                         // check distance between projection of 3D intersection and intersection in second keyframe
                         double distLCIntersectMatch = cv::norm(lineCrossMatch - intersectMatch2f);
+                        // distance threshold related to the depth of line crossing
+                        cv::Mat intersectMatC = pKFMatch->TransformPointWtoC(intersect3D);
                         // the distance is small enough (in pixel)
-                        if (distLCIntersectMatch <= TH_LP_MATCH) {
+                        if (distLCIntersectMatch <= TH_LP_MATCH / intersectMatC.at<float>(2)) {
                             // there is a match, save it in the virtual line segment
                             LinePoint lp(intersect3f);
                             lp.addRefLineSegment(line, mpLSuLS[line]);
@@ -755,7 +769,7 @@ namespace ORB_SLAM2 {
                         }
                     }
                     // filter out line segment matches that have too much order inversion
-                    if (K > 5)
+                    if (K > 50)
                         continue;
 
                     // compute number of good points
@@ -776,22 +790,32 @@ namespace ORB_SLAM2 {
                     // merge neighbour views into one set, should have 8
                     std::vector<KeyFrame*> vKFNB;
                     for (size_t indKFN = 0; indKFN < vKFNeighbour.size(); indKFN++){
-                        if (vKFNeighbour[indKFN] == pKF || vKFNeighbour[indKFN] == pKFMatch)
+                        KeyFrame* pKFNB = vKFNeighbour[indKFN];
+                        if (pKFNB == pKF || pKFNB == pKFMatch)
                             continue;
-                        if (vKFNeighbour[indKFN]->isBad())
+                        if (pKFNB->isBad())
+                            continue;
+                        if (cv::norm(pKF->GetTranslation() - pKFNB->GetTranslation()) < TH_KF_DIST*pKF->ComputeSceneMedianDepth(2))
+                            continue;
+                        if (cv::norm(pKFMatch->GetTranslation() - pKFNB->GetTranslation()) < TH_KF_DIST*pKFMatch->ComputeSceneMedianDepth(2))
                             continue;
                         // avoid duplicate neighbour view
-                        if (std::find(vKFNB.begin(),vKFNB.end(),vKFNeighbour[indKFN]) != vKFNB.end())
+                        if (std::find(vKFNB.begin(),vKFNB.end(),pKFNB) != vKFNB.end())
                             continue;
-                        vKFNB.push_back(vKFNeighbour[indKFN]);
+                        vKFNB.push_back(pKFNB);
                     }
                     for (size_t indKFN = 0; indKFN < vKFNeighbourMatch.size(); indKFN++){
-                        if (vKFNeighbourMatch[indKFN] == pKF || vKFNeighbourMatch[indKFN] == pKFMatch)
+                        KeyFrame* pKFNBMatch = vKFNeighbourMatch[indKFN];
+                        if (pKFNBMatch == pKF || pKFNBMatch == pKFMatch)
                             continue;
-                        if (vKFNeighbourMatch[indKFN]->isBad())
+                        if (pKFNBMatch->isBad())
+                            continue;
+                        if (cv::norm(pKF->GetTranslation() - pKFNBMatch->GetTranslation()) < TH_KF_DIST*pKF->ComputeSceneMedianDepth(2))
+                            continue;
+                        if (cv::norm(pKFMatch->GetTranslation() - pKFNBMatch->GetTranslation()) < TH_KF_DIST*pKFMatch->ComputeSceneMedianDepth(2))
                             continue;
                         // avoid duplicate neighbour view
-                        if (std::find(vKFNB.begin(),vKFNB.end(),vKFNeighbourMatch[indKFN]) != vKFNB.end())
+                        if (std::find(vKFNB.begin(),vKFNB.end(),pKFNBMatch) != vKFNB.end())
                             continue;
                         vKFNB.push_back(vKFNeighbourMatch[indKFN]);
                     }
@@ -813,7 +837,7 @@ namespace ORB_SLAM2 {
                             KeyFrame *pKFNB = vKFNB[indKFN];
                             std::vector<LineSegment> &vLSNB = mvLSpKF[pKFNB];
 
-                            cv::Point2f lpOnKFNB = pKFMatch->ProjectPointOnCamera(lp3d);
+                            cv::Point2f lpOnKFNB = pKFNB->ProjectPointOnCamera(lp3d);
                             // make sure projected onto image
                             if (lpOnKFNB.x < 0 || lpOnKFNB.y < 0)
                                 continue;
@@ -821,13 +845,13 @@ namespace ORB_SLAM2 {
                             // position of projection of vls end points in neighbour kf
                             cv::Point2f startVLS2fNB = pKFNB->ProjectPointOnCamera(vlsNB.mpMPStart->GetWorldPos());
                             cv::Point2f endVLS2fNB = pKFNB->ProjectPointOnCamera(vlsNB.mpMPEnd->GetWorldPos());
-                            // test if the virtual line segment is in image, this should be always be false
-                            if (startVLS2fNB.x < 0 || startVLS2fNB.y < 0 || endVLS2fNB.x < 0 || endVLS2fNB.y < 0)
-                                continue;
+//                            // test if the virtual line segment is in image, this should be always be false
+//                            if (startVLS2fNB.x < 0 || startVLS2fNB.y < 0 || endVLS2fNB.x < 0 || endVLS2fNB.y < 0)
+//                                continue;
                             cv::Point2f seVLS2fNB = endVLS2fNB - startVLS2fNB;
-                            // filter out virtual line segments that the pair of points are too far away
-                            if (cv::norm(seVLS2fNB) > MAX_VLS_LEN || cv::norm(seVLS2fNB) < MIM_VLS_LEN)
-                                continue;
+//                            // filter out virtual line segments that the pair of points are too far away
+//                            if (cv::norm(seVLS2fNB) > MAX_VLS_LEN || cv::norm(seVLS2fNB) < MIM_VLS_LEN)
+//                                continue;
 
                             for (size_t indexLSNB = 0; indexLSNB < vLSNB.size(); indexLSNB++) {
                                 LineSegment &lineNB = vLSNB[indexLSNB];
@@ -850,16 +874,18 @@ namespace ORB_SLAM2 {
                                 if (uLSNB < 0.0 || uLSNB > 1.0)
                                     continue;
                                 double vlsNBExtend = VLS_EXTEND;
-                                // if not intersected with VLS with some expansion
-                                if (tVLSNB < 0 - (vlsNBExtend-1) / 2 || tVLSNB > 1 + (vlsNBExtend-1) / 2)
-                                    continue;
+//                                // if not intersected with VLS with some expansion
+//                                if (tVLSNB < 0 - (vlsNBExtend-1) / 2 || tVLSNB > 1 + (vlsNBExtend-1) / 2)
+//                                    continue;
 
                                 cv::Point2f intersectNB2f = startLSNB2f + uLSNB * seLSNB2f;
 
                                 // check distance between projection of 3D intersection and intersection in second keyframe
                                 double distLCIntersectNB = cv::norm(lpOnKFNB - intersectNB2f);
+                                // distance threshold related to the depth of line crossing
+                                cv::Mat intersectNBC = pKFNB->TransformPointWtoC(lp3d);
                                 // the distance is small enough (in pixel)
-                                if (distLCIntersectNB <= TH_LP_MATCH) {
+                                if (distLCIntersectNB <= TH_LP_MATCH * intersectNBC.at<float>(2)) {
                                     nSupportedView++;
                                 }
                             }
@@ -895,7 +921,7 @@ namespace ORB_SLAM2 {
 
                         }
 
-                        if (nSupportedView >= 1){
+                        if (nSupportedView >= 2){
 
                             std::cout << "Supporting View: " << std::to_string(nSupportedView)
                                       << " total: " << std::to_string(vKFNB.size()) << std::endl;
