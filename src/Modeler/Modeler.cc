@@ -328,11 +328,11 @@ namespace ORB_SLAM2 {
         // vls extension ratio
         const double VLS_EXTEND = 1000.0;
         // line points matching threshold
-        const double TH_LP_MATCH = 0.3;
+        const double TH_LP_MATCH = 0.5;
         // threshold of number of line points on line segment
         const unsigned long TH_LPONLS = 5;
         // threshold for kf dist
-        const double TH_KF_DIST = 0.03;
+        const double TH_KF_DIST = 0.05;
 
 
         // all virtual line segments
@@ -787,7 +787,8 @@ namespace ORB_SLAM2 {
                     // project each point onto other neighbour views
                     std::vector<KeyFrame*> vKFNeighbour = pKF->GetBestCovisibilityKeyFrames(10);
                     std::vector<KeyFrame*> vKFNeighbourMatch = pKFMatch->GetBestCovisibilityKeyFrames(10);
-                    // merge neighbour views into one set, should have 8
+                    vKFNeighbour.insert(vKFNeighbour.end(), vKFNeighbourMatch.begin(), vKFNeighbourMatch.end());
+                    // merge neighbour views into one set
                     std::vector<KeyFrame*> vKFNB;
                     for (size_t indKFN = 0; indKFN < vKFNeighbour.size(); indKFN++){
                         KeyFrame* pKFNB = vKFNeighbour[indKFN];
@@ -802,22 +803,15 @@ namespace ORB_SLAM2 {
                         // avoid duplicate neighbour view
                         if (std::find(vKFNB.begin(),vKFNB.end(),pKFNB) != vKFNB.end())
                             continue;
-                        vKFNB.push_back(pKFNB);
-                    }
-                    for (size_t indKFN = 0; indKFN < vKFNeighbourMatch.size(); indKFN++){
-                        KeyFrame* pKFNBMatch = vKFNeighbourMatch[indKFN];
-                        if (pKFNBMatch == pKF || pKFNBMatch == pKFMatch)
-                            continue;
-                        if (pKFNBMatch->isBad())
-                            continue;
-                        if (cv::norm(pKF->GetTranslation() - pKFNBMatch->GetTranslation()) < TH_KF_DIST*pKF->ComputeSceneMedianDepth(2))
-                            continue;
-                        if (cv::norm(pKFMatch->GetTranslation() - pKFNBMatch->GetTranslation()) < TH_KF_DIST*pKFMatch->ComputeSceneMedianDepth(2))
-                            continue;
-                        // avoid duplicate neighbour view
-                        if (std::find(vKFNB.begin(),vKFNB.end(),pKFNBMatch) != vKFNB.end())
-                            continue;
-                        vKFNB.push_back(vKFNeighbourMatch[indKFN]);
+                        bool nearOtherKFNB = false;
+                        for (auto itNB = vKFNB.begin(); itNB != vKFNB.end(); itNB++){
+                            if (cv::norm((*itNB)->GetTranslation() - pKFNB->GetTranslation()) < TH_KF_DIST*(*itNB)->ComputeSceneMedianDepth(2)){
+                                nearOtherKFNB = true;
+                                break;
+                            }
+                        }
+                        if (!nearOtherKFNB)
+                            vKFNB.push_back(pKFNB);
                     }
                     if (vKFNB.size() < 2)
                         continue;
