@@ -171,7 +171,7 @@ namespace ORB_SLAM2
             if(menuShowKeyFrames || menuShowGraph)
                 mpMapDrawer->DrawKeyFrames(menuShowKeyFrames,menuShowGraph);
             if(menuShowPoints) {
-                mpMapDrawer->DrawMapPoints();
+//                mpMapDrawer->DrawMapPoints();
                 // carv: show model points
                 mpModelDrawer->DrawModelPoints();
             }

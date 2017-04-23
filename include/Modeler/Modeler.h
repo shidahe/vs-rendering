@@ -40,8 +40,7 @@ namespace ORB_SLAM2 {
             mpRefKF = NULL;
         }
 
-        // obselete, not using in line-sweep
-        map<MapPoint*, float> mmpMPProj;
+        map<MapPoint*, double> mmpMPProj;
 
         KeyFrame* mpRefKF;
         cv::Point2f mStart;
@@ -202,6 +201,9 @@ namespace ORB_SLAM2 {
         std::vector<LineSegment> mvLines;
         cv::Mat mImLines;
         std::mutex mMutexLines;
+
+        //lines detected from previous kf
+        std::map<KeyFrame*,std::vector<LineSegment>> mmpKFvLS;
 
     };
 }

@@ -24,8 +24,8 @@ namespace ORB_SLAM2 {
 
     Modeler::Modeler(ModelDrawer* pModelDrawer):
             mbResetRequested(false), mbFinishRequested(false), mbFinished(true), mpModelDrawer(pModelDrawer),
-            mnLastNumLines(2), mbFirstKeyFrame(true), mnMaxTextureQueueSize(10), mnMaxFrameQueueSize(10000),
-            mnMaxToLinesQueueSize(1000)
+            mnLastNumLines(2), mbFirstKeyFrame(true), mnMaxTextureQueueSize(10), mnMaxFrameQueueSize(1000),
+            mnMaxToLinesQueueSize(100)
     {
         mAlgInterface.setAlgorithmRef(&mObjAlgorithm);
         mAlgInterface.setTranscriptRef(mTranscriptInterface.getTranscriptToProcessRef());
@@ -59,10 +59,10 @@ namespace ORB_SLAM2 {
 
                 UpdateModelDrawer();
             }
-//            else {
-//
-//                AddPointsOnLineSegments();
-//            }
+            else {
+
+                AddPointsOnLineSegments();
+            }
 
             ResetIfRequested();
 
@@ -147,67 +147,167 @@ namespace ORB_SLAM2 {
 
         std::vector<LineSegment> lines = DetectLineSegments(imGray);
 
-        //       L3DPP::Line3D* Line3D = new L3DPP::Line3D(...);
+        // save lines for future usage
+        mmpKFvLS.insert(std::map<KeyFrame*,std::vector<LineSegment>>::value_type(pKF,lines));
+
+        // get a kf to match with
+        KeyFrame* pKFMatch = NULL;
+        std::vector<KeyFrame*> vKFBestCov = pKF->GetBestCovisibilityKeyFrames(10);
+        double medianDepth = pKF->ComputeSceneMedianDepth(2);
+
+        for (auto it = vKFBestCov.begin(); it != vKFBestCov.end(); it++) {
+            if ((*it)->isBad())
+                continue;
+            if (cv::norm(pKF->GetTranslation() - (*it)->GetTranslation()) > 0.1*medianDepth) {
+                pKFMatch = *it;
+                break;
+            }
+        }
+        if (pKFMatch == NULL){
+            std::cout << "No good KF to match with!" << endl;
+            vPOnLine.clear();
+            return vPOnLine;
+        }
+
+        double medianDepthMatch = pKFMatch->ComputeSceneMedianDepth(2);
+
+        // MapPoints and there projection on kf
+        std::map<MapPoint*, cv::Point2f> mpMPonKF;
+        std::map<MapPoint*, cv::Point2f> mpMPonKFMatch;
+
+        std::set<MapPoint*> spMPKF = pKF->GetMapPoints();
+        std::set<MapPoint*> spMPMatch = pKF->GetMapPoints();
+        std::set<MapPoint*> spMP;
+
+        // find all matched points in two keyframes
+        for (std::set<MapPoint*>::iterator it = spMPKF.begin(); it != spMPKF.end(); it++){
+            // filter out bad map points
+            if ((*it)->isBad())
+                continue;
+            // only keep confident points
+            if ((*it)->Observations() < 5)
+                continue;
+
+            std::set<MapPoint*>::iterator itMatch;
+            itMatch = spMPMatch.find(*it);
+
+            if (itMatch == spMPMatch.end())
+                continue;
+
+            // if a match found
+            spMP.insert(*it);
+        }
+
+        for (std::set<MapPoint*>::iterator it = spMP.begin(); it != spMP.end(); it++){
+            // need to test if xy > 0
+            cv::Point2f xy = pKF->ProjectPointOnCamera((*it)->GetWorldPos());
+            if (xy.x < 0 || xy.y < 0)
+                continue;
+            cv::Point2f xyMatch = pKFMatch->ProjectPointOnCamera((*it)->GetWorldPos());
+            if (xyMatch.x < 0 || xyMatch.y < 0)
+                continue;
+
+            mpMPonKF.insert(std::map<MapPoint*,cv::Point2f>::value_type(*it, xy));
+            mpMPonKFMatch.insert(std::map<MapPoint*,cv::Point2f>::value_type(*it, xyMatch));
+        }
 
         for(size_t indexLines = 0; indexLines < lines.size(); indexLines++){
             LineSegment& line = lines[indexLines];
             // set reference keyframe of the line segment
             line.mpRefKF = pKF;
 
-            std::set<MapPoint*> vpMP = pKF->GetMapPoints();
-
             // calculate distance from point to line, if small enough, assign it to the supporting point list of the line
-            cv::Point2f &start = line.mStart;
-            cv::Point2f &end = line.mEnd;
+            cv::Point2f start = line.mStart;
+            cv::Point2f end = line.mEnd;
             cv::Point2f diff = end - start;
-            float l2 = std::pow(diff.x, 2.0f) + std::pow(diff.y, 2.0f);
+            double l2 = diff.x*diff.x + diff.y*diff.y;
 
-            for (std::set<MapPoint*>::iterator it = vpMP.begin(); it != vpMP.end(); it++) {
-                if ((*it)->isBad())
-                    continue;
-                if ((*it)->Observations() < 5)
-                    continue;
+            // filter out short line segments
+            if (l2 < 10.0)
+                continue;
 
-                // need to test if xy > 0
-                cv::Point2f xy = pKF->ProjectPointOnCamera((*it)->GetWorldPos());
-
-                float t = max(0.0f, min(1.0f, (xy-start).dot(end-start) / l2));
-                cv::Point2f proj = start + t * (end - start);
-                cv::Point2f minDiff = xy - proj;
-                float distSqr = std::pow(minDiff.x, 2.0f) + std::pow(minDiff.y, 2.0f);
-                if (distSqr < 2.0) {
-                    line.mmpMPProj[*it] = t;
+            for (auto it = mpMPonKF.begin(); it != mpMPonKF.end(); it++) {
+                cv::Point2f xy = it->second;
+                double dist;
+                double t = 0.0;
+                if (l2 == 0.0){
+                    dist = cv::norm(xy - start);
+                } else {
+                    t = std::max(0.0, std::min(1.0, (xy-start).dot(diff) / l2));
+                    cv::Point2f proj = start + t * diff;
+                    dist = cv::norm(xy - proj);
+                }
+                if (dist < 5.0*std::sqrt(medianDepth)) {
+                    line.mmpMPProj.insert(std::map<MapPoint*,float>::value_type(it->first, (float)t));
                 }
             }
 
+            std::vector<LineSegment>& vLSMatch = mmpKFvLS[pKFMatch];
+            std::vector<MapPoint*> vMPSupported;
+            for (size_t indexLinesMatch = 0; indexLinesMatch < vLSMatch.size(); indexLinesMatch++) {
+                LineSegment& lineMatch = vLSMatch[indexLinesMatch];
+                cv::Point2f startMatch = lineMatch.mStart;
+                cv::Point2f endMatch = lineMatch.mEnd;
+                cv::Point2f diffMatch = endMatch - startMatch;
+                double l2Match = diffMatch.x*diffMatch.x + diffMatch.y*diffMatch.y;
 
+                std::vector<MapPoint*> vMP;
+                for (auto it = line.mmpMPProj.begin(); it != line.mmpMPProj.end(); it++) {
+                    cv::Point2f xy = mpMPonKFMatch[it->first];
+                    double dist;
+                    double t = 0.0;
+                    if (l2Match == 0.0){
+                        dist = cv::norm(xy - startMatch);
+                    } else {
+                        t = std::max(0.0, std::min(1.0, (xy-startMatch).dot(diffMatch) / l2Match));
+                        cv::Point2f proj = startMatch + t * diffMatch;
+                        dist = cv::norm(xy - proj);
+                    }
+                    if (dist < 5.0*std::sqrt(medianDepthMatch)) {
+                        vMP.push_back(it->first);
+                    }
+                }
+                if (vMP.size() > vMPSupported.size()) {
+                    vMPSupported = vMP;
+                }
+            }
 
-            if (line.mmpMPProj.size() >= 2) {
+            if (vMPSupported.size() < 2)
+                continue;
+
+            for (auto it = line.mmpMPProj.begin(); it != line.mmpMPProj.end(); it++){
+                if (find(vMPSupported.begin(), vMPSupported.end(), it->first) == vMPSupported.end()){
+                    line.mmpMPProj.erase(it);
+                }
+            }
+
+            MapPoint* pMPFirst = line.mmpMPProj.begin()->first;
+            MapPoint* pMPLast = line.mmpMPProj.begin()->first;
+            double tFirst = 1.0;
+            double tLast = 0.0;
+            for (auto it = line.mmpMPProj.begin(); it != line.mmpMPProj.end(); it++){
+                if (it->second > tLast) {
+                    pMPLast = it->first;
+                    tLast = it->second;
+                }
+                if (it->second < tFirst) {
+                    pMPFirst = it->first;
+                    tFirst = it->second;
+                }
+            }
+
+            if (line.mmpMPProj.size() >= 2 && pMPFirst != pMPLast && tLast - tFirst > 0.3) {
                 //TODO: using the first and last at this time, probably change to svd
-                cv::Point3f p1, p2;
-                cv::Mat p1mat = line.mmpMPProj.begin()->first->GetWorldPos();
-                cv::Mat p2mat = line.mmpMPProj.rbegin()->first->GetWorldPos();
-                float t1 = line.mmpMPProj.begin()->second;
-                float t2 = line.mmpMPProj.rbegin()->second;
+                cv::Point3f p1(pMPFirst->GetWorldPos());
+                cv::Point3f p2(pMPLast->GetWorldPos());
 
-                p1.x = p1mat.at<float>(0);
-                p1.y = p1mat.at<float>(1);
-                p1.z = p1mat.at<float>(2);
-                p2.x = p2mat.at<float>(0);
-                p2.y = p2mat.at<float>(1);
-                p2.z = p2mat.at<float>(2);
-
-//                cv::Point3f dt = (p2 - p1) * (1 / (t2 - t1));
-//                cv::Point3f start3f = p1 - t1 * dt;
                 cv::Point3f dt = p2 - p1;
                 cv::Point3f start3f = p1;
 
-                cout << "p1mat" << p1mat << endl;
-                cout << "p2mat" << p2mat << endl;
                 cout << "dt" << dt << endl;
                 cout << "start3f" << start3f << endl;
 
-                for (float i = 0.2; i <= 0.8; i += 0.1) {
+                for (float i = 0.0; i <= 1.0; i += 0.2) {
                     cv::Point3f currP = start3f + i * dt;
                     cout << "currP" << currP << endl;
                     vPOnLine.push_back(currP);
@@ -215,8 +315,8 @@ namespace ORB_SLAM2 {
             }
         }
 
-        cout << vPOnLine.size() << " points are generated from " << vPOnLine.size()/7 << " lines. " << lines.size()
-             << " lines are detected from keyframe with " << pKF->TrackedMapPoints(3)  << " tracked points." << endl;
+        cout << vPOnLine.size() << " points are generated from " << vPOnLine.size()/5 << " lines. " << lines.size()
+             << " lines are detected from keyframe with " << spMP.size()  << " tracked points." << endl;
 
 
         //find points that are not bad from keyframes that are not bad
@@ -230,8 +330,6 @@ namespace ORB_SLAM2 {
         {
             //update lines and image to draw
             unique_lock<mutex> lock(mMutexLines);
-//            mvLines.clear();
-//            std::vector<LineSegment>(mvLines).swap(mvLines);
             mvLines = lines;
             imGray.copyTo(mImLines);
         }
@@ -1363,8 +1461,8 @@ namespace ORB_SLAM2 {
             cv::line(im, line.mStart, line.mEnd, cv::Scalar(0,255,0));
 
             // draw points on line segment
-            std::map<MapPoint*,float> mpMP = line.mmpMPProj;
-            for (std::map<MapPoint*, float>::iterator it = mpMP.begin(); it != mpMP.end(); it++){
+            std::map<MapPoint*,double> mpMP = line.mmpMPProj;
+            for (std::map<MapPoint*, double>::iterator it = mpMP.begin(); it != mpMP.end(); it++){
                 MapPoint * pMP = it->first;
                 cv::Point2f pt = line.mpRefKF->ProjectPointOnCamera(pMP->GetWorldPos());
                 const float r = 5;
