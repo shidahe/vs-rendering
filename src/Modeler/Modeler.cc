@@ -24,8 +24,8 @@ namespace ORB_SLAM2 {
 
     Modeler::Modeler(ModelDrawer* pModelDrawer):
             mbResetRequested(false), mbFinishRequested(false), mbFinished(true), mpModelDrawer(pModelDrawer),
-            mnLastNumLines(2), mbFirstKeyFrame(true), mnMaxTextureQueueSize(10), mnMaxFrameQueueSize(1000),
-            mnMaxToLinesQueueSize(100)
+            mnLastNumLines(2), mbFirstKeyFrame(true), mnMaxTextureQueueSize(10), mnMaxFrameQueueSize(5000),
+            mnMaxToLinesQueueSize(500)
     {
         mAlgInterface.setAlgorithmRef(&mObjAlgorithm);
         mAlgInterface.setTranscriptRef(mTranscriptInterface.getTranscriptToProcessRef());
@@ -61,7 +61,7 @@ namespace ORB_SLAM2 {
             }
             else {
 
-                AddPointsOnLineSegments();
+//                AddPointsOnLineSegments();
             }
 
             ResetIfRequested();
@@ -128,6 +128,14 @@ namespace ORB_SLAM2 {
 
     std::vector<cv::Point3f> Modeler::GetPointsOnLineSegments(KeyFrame* pKF){
 
+        const double TH_KF_DIST = 0.1;
+        const double TH_MP_LINE = 10.0;
+        const int NUM_KF_MATCH = 3;
+        const int NUM_KF_VERIFIED = 3;
+        const double TH_LS_LENGTH_SQR = 100.0;
+        const double MAX_LS_ANGLE = 60.0;
+        const double TH_MP_RATIO_DIST = 0.3;
+
         std::vector<cv::Point3f> vPOnLine;
 
         cv::Mat imGray;
@@ -151,33 +159,52 @@ namespace ORB_SLAM2 {
         mmpKFvLS.insert(std::map<KeyFrame*,std::vector<LineSegment>>::value_type(pKF,lines));
 
         // get a kf to match with
-        KeyFrame* pKFMatch = NULL;
+        std::vector<KeyFrame*> vpKFMatch;
         std::vector<KeyFrame*> vKFBestCov = pKF->GetBestCovisibilityKeyFrames(10);
         double medianDepth = pKF->ComputeSceneMedianDepth(2);
 
         for (auto it = vKFBestCov.begin(); it != vKFBestCov.end(); it++) {
             if ((*it)->isBad())
                 continue;
-            if (cv::norm(pKF->GetTranslation() - (*it)->GetTranslation()) > 0.1*medianDepth) {
-                pKFMatch = *it;
-                break;
+            if (cv::norm(pKF->GetTranslation() - (*it)->GetTranslation()) < TH_KF_DIST * medianDepth)
+                continue;
+            // the kf must be in past
+            auto itFind = mmpKFvLS.find(*it);
+            if (itFind == mmpKFvLS.end())
+                continue;
+
+            bool notNear = true;
+            for (size_t indKFMatch = 0; indKFMatch < vpKFMatch.size(); indKFMatch++){
+                double distFromKF = cv::norm(vpKFMatch[indKFMatch]->GetTranslation() - (*it)->GetTranslation());
+                // make sure the kf are distant from each other
+                if (distFromKF < TH_KF_DIST * medianDepth)
+                    notNear = false;
             }
+            if (notNear)
+                vpKFMatch.push_back(*it);
+
+            if (vpKFMatch.size() >= NUM_KF_MATCH)
+                break;
         }
-        if (pKFMatch == NULL){
-            std::cout << "No good KF to match with!" << endl;
+        if (vpKFMatch.size() < NUM_KF_MATCH){
+            std::cout << "Not enough good KFs to match with!" << endl;
             vPOnLine.clear();
             return vPOnLine;
         }
 
-        double medianDepthMatch = pKFMatch->ComputeSceneMedianDepth(2);
-
         // MapPoints and there projection on kf
         std::map<MapPoint*, cv::Point2f> mpMPonKF;
-        std::map<MapPoint*, cv::Point2f> mpMPonKFMatch;
 
-        std::set<MapPoint*> spMPKF = pKF->GetMapPoints();
-        std::set<MapPoint*> spMPMatch = pKF->GetMapPoints();
+        // common points among kfs
         std::set<MapPoint*> spMP;
+        std::set<MapPoint*> spMPKF = pKF->GetMapPoints();
+
+        std::vector<double> vMedianDepthMatch;
+        std::vector<std::set<MapPoint*>> vspMPMatch;
+        for (size_t indKFMatch = 0; indKFMatch < vpKFMatch.size(); indKFMatch++){
+            vspMPMatch.push_back(vpKFMatch[indKFMatch]->GetMapPoints());
+            vMedianDepthMatch.push_back(vpKFMatch[indKFMatch]->ComputeSceneMedianDepth(2));
+        }
 
         // find all matched points in two keyframes
         for (std::set<MapPoint*>::iterator it = spMPKF.begin(); it != spMPKF.end(); it++){
@@ -188,27 +215,49 @@ namespace ORB_SLAM2 {
             if ((*it)->Observations() < 5)
                 continue;
 
-            std::set<MapPoint*>::iterator itMatch;
-            itMatch = spMPMatch.find(*it);
+            bool seemInAll = true;
+            for (size_t indKFMatch = 0; indKFMatch < vpKFMatch.size(); indKFMatch++) {
+                std::set<MapPoint *>::iterator itMatch;
+                itMatch = vspMPMatch[indKFMatch].find(*it);
 
-            if (itMatch == spMPMatch.end())
-                continue;
-
+                if (itMatch == vspMPMatch[indKFMatch].end()) {
+                    seemInAll = false;
+                    break;
+                }
+            }
             // if a match found
-            spMP.insert(*it);
+            if (seemInAll)
+                spMP.insert(*it);
+        }
+
+        std::vector<std::map<MapPoint*, cv::Point2f>> vmpMPonKFMatch;
+        for (size_t indKFMatch = 0; indKFMatch < vpKFMatch.size(); indKFMatch++) {
+            std::map<MapPoint*, cv::Point2f> mpMPonKFMatch;
+            vmpMPonKFMatch.push_back(mpMPonKFMatch);
         }
 
         for (std::set<MapPoint*>::iterator it = spMP.begin(); it != spMP.end(); it++){
             // need to test if xy > 0
             cv::Point2f xy = pKF->ProjectPointOnCamera((*it)->GetWorldPos());
-            if (xy.x < 0 || xy.y < 0)
+            if(xy.x < 0 || xy.y < 0)
                 continue;
-            cv::Point2f xyMatch = pKFMatch->ProjectPointOnCamera((*it)->GetWorldPos());
-            if (xyMatch.x < 0 || xyMatch.y < 0)
+
+            std::vector<cv::Point2f> vXYMatch;
+            for (size_t indKFMatch = 0; indKFMatch < vpKFMatch.size(); indKFMatch++) {
+                cv::Point2f xyMatch = vpKFMatch[indKFMatch]->ProjectPointOnCamera((*it)->GetWorldPos());
+                if (xyMatch.x < 0 || xyMatch.y < 0){
+                    break;
+                }
+                vXYMatch.push_back(xyMatch);
+            }
+            if (vXYMatch.size() != vpKFMatch.size())
                 continue;
 
             mpMPonKF.insert(std::map<MapPoint*,cv::Point2f>::value_type(*it, xy));
-            mpMPonKFMatch.insert(std::map<MapPoint*,cv::Point2f>::value_type(*it, xyMatch));
+            for (size_t indKFMatch = 0; indKFMatch < vpKFMatch.size(); indKFMatch++) {
+                cv::Point2f xyMatch = vXYMatch[indKFMatch];
+                vmpMPonKFMatch[indKFMatch].insert(std::map<MapPoint*,cv::Point2f>::value_type(*it,xyMatch));
+            }
         }
 
         for(size_t indexLines = 0; indexLines < lines.size(); indexLines++){
@@ -223,7 +272,7 @@ namespace ORB_SLAM2 {
             double l2 = diff.x*diff.x + diff.y*diff.y;
 
             // filter out short line segments
-            if (l2 < 10.0)
+            if (l2 < TH_LS_LENGTH_SQR)
                 continue;
 
             for (auto it = mpMPonKF.begin(); it != mpMPonKF.end(); it++) {
@@ -237,49 +286,66 @@ namespace ORB_SLAM2 {
                     cv::Point2f proj = start + t * diff;
                     dist = cv::norm(xy - proj);
                 }
-                if (dist < 5.0*std::sqrt(medianDepth)) {
+                if (dist < TH_MP_LINE * std::sqrt(medianDepth)) {
                     line.mmpMPProj.insert(std::map<MapPoint*,float>::value_type(it->first, (float)t));
                 }
             }
 
-            std::vector<LineSegment>& vLSMatch = mmpKFvLS[pKFMatch];
-            std::vector<MapPoint*> vMPSupported;
-            for (size_t indexLinesMatch = 0; indexLinesMatch < vLSMatch.size(); indexLinesMatch++) {
-                LineSegment& lineMatch = vLSMatch[indexLinesMatch];
-                cv::Point2f startMatch = lineMatch.mStart;
-                cv::Point2f endMatch = lineMatch.mEnd;
-                cv::Point2f diffMatch = endMatch - startMatch;
-                double l2Match = diffMatch.x*diffMatch.x + diffMatch.y*diffMatch.y;
+//            // count how many times a point is verified
+//            std::map<MapPoint*,int> mpMPSupportedAll;
+//            for (auto it = line.mmpMPProj.begin(); it != line.mmpMPProj.end(); it++) {
+//                mpMPSupportedAll.insert(std::map<MapPoint*,int>::value_type(it->first,0));
+//            }
+            // count how many times the points are verified
+            int verifiedKF = 0;
+            for (size_t indKFMatch = 0; indKFMatch < vpKFMatch.size(); indKFMatch++) {
+                std::vector<LineSegment> &vLSMatch = mmpKFvLS[vpKFMatch[indKFMatch]];
+                std::vector<MapPoint *> vMPSupported;
+                for (size_t indexLinesMatch = 0; indexLinesMatch < vLSMatch.size(); indexLinesMatch++) {
+                    LineSegment &lineMatch = vLSMatch[indexLinesMatch];
+                    cv::Point2f startMatch = lineMatch.mStart;
+                    cv::Point2f endMatch = lineMatch.mEnd;
+                    cv::Point2f diffMatch = endMatch - startMatch;
+                    double l2Match = diffMatch.x * diffMatch.x + diffMatch.y * diffMatch.y;
+                    // filter out short line segments
+                    if (l2Match < TH_LS_LENGTH_SQR)
+                        continue;
 
-                std::vector<MapPoint*> vMP;
-                for (auto it = line.mmpMPProj.begin(); it != line.mmpMPProj.end(); it++) {
-                    cv::Point2f xy = mpMPonKFMatch[it->first];
-                    double dist;
-                    double t = 0.0;
-                    if (l2Match == 0.0){
-                        dist = cv::norm(xy - startMatch);
-                    } else {
-                        t = std::max(0.0, std::min(1.0, (xy-startMatch).dot(diffMatch) / l2Match));
-                        cv::Point2f proj = startMatch + t * diffMatch;
-                        dist = cv::norm(xy - proj);
+                    std::vector<MapPoint *> vMP;
+                    for (auto it = line.mmpMPProj.begin(); it != line.mmpMPProj.end(); it++) {
+                        cv::Point2f xy = vmpMPonKFMatch[indKFMatch][it->first];
+                        double dist;
+                        double t = 0.0;
+                        if (l2Match == 0.0) {
+                            dist = cv::norm(xy - startMatch);
+                        } else {
+                            t = std::max(0.0, std::min(1.0, (xy - startMatch).dot(diffMatch) / l2Match));
+                            cv::Point2f proj = startMatch + t * diffMatch;
+                            dist = cv::norm(xy - proj);
+                        }
+                        if (dist < TH_MP_LINE * std::sqrt(vMedianDepthMatch[indKFMatch])) {
+                            vMP.push_back(it->first);
+                        }
                     }
-                    if (dist < 5.0*std::sqrt(medianDepthMatch)) {
-                        vMP.push_back(it->first);
+                    if (vMP.size() > vMPSupported.size()) {
+                        vMPSupported = vMP;
                     }
                 }
-                if (vMP.size() > vMPSupported.size()) {
-                    vMPSupported = vMP;
+
+                if (vMPSupported.size() >= 2) {
+                    verifiedKF++;
+//                    for (auto it = vMPSupported.begin(); it != vMPSupported.end(); it++) {
+//                        mpMPSupportedAll[*it]++;
+//                    }
+                    for (auto it = line.mmpMPProj.begin(); it != line.mmpMPProj.end(); it++){
+                        if (std::find(vMPSupported.begin(),vMPSupported.end(),it->first) == vMPSupported.end())
+                            line.mmpMPProj.erase(it);
+                    }
                 }
             }
 
-            if (vMPSupported.size() < 2)
+            if (verifiedKF < NUM_KF_VERIFIED || line.mmpMPProj.size() < 2)
                 continue;
-
-            for (auto it = line.mmpMPProj.begin(); it != line.mmpMPProj.end(); it++){
-                if (find(vMPSupported.begin(), vMPSupported.end(), it->first) == vMPSupported.end()){
-                    line.mmpMPProj.erase(it);
-                }
-            }
 
             MapPoint* pMPFirst = line.mmpMPProj.begin()->first;
             MapPoint* pMPLast = line.mmpMPProj.begin()->first;
@@ -296,10 +362,24 @@ namespace ORB_SLAM2 {
                 }
             }
 
-            if (line.mmpMPProj.size() >= 2 && pMPFirst != pMPLast && tLast - tFirst > 0.3) {
+            if (pMPFirst != pMPLast && tLast - tFirst > TH_MP_RATIO_DIST) {
                 //TODO: using the first and last at this time, probably change to svd
-                cv::Point3f p1(pMPFirst->GetWorldPos());
-                cv::Point3f p2(pMPLast->GetWorldPos());
+                cv::Mat p1Mat = pMPFirst->GetWorldPos().clone();
+                cv::Mat p2Mat = pMPLast->GetWorldPos().clone();
+
+                cv::Mat p1C = pKF->TransformPointWtoC(p1Mat);
+                cv::Mat p2C = pKF->TransformPointWtoC(p2Mat);
+                cv::Mat diffC = p2C - p1C;
+                float diffx = std::abs(diffC.at<float>(0));
+                float diffy = std::abs(diffC.at<float>(1));
+                float diffz = std::abs(diffC.at<float>(2));
+                double angleToCamera = cv::fastAtan2(diffz, std::sqrt(diffx*diffx + diffy*diffy));
+                std::cout << "angle to camera on KF: " << std::to_string(angleToCamera) << std::endl;
+                if (angleToCamera > MAX_LS_ANGLE)
+                    continue;
+
+                cv::Point3f p1(p1Mat);
+                cv::Point3f p2(p2Mat);
 
                 cv::Point3f dt = p2 - p1;
                 cv::Point3f start3f = p1;
@@ -418,19 +498,21 @@ namespace ORB_SLAM2 {
             mvLSpKF.insert(std::map<KeyFrame*,std::vector<LineSegment>>::value_type(pKF, lines));
         }
 
+        //TODO: compute line crossings for each kf first, avoid compute intersection multiple times
+        //TODO: maybe check if line points from a line segment match are all on the same line segments in neighbour kfs
 
         const double MAX_VLS_LEN = 500;
         const double MIM_VLS_LEN = 5;
         // threshold for vls and line segment angle
-        const double MAX_VLS_ANGLE = 80;
+        const double MIN_VLS_ANGLE = 30;
         // vls extension ratio
-        const double VLS_EXTEND = 1000.0;
+        const double VLS_EXTEND = 5.0;
         // line points matching threshold
         const double TH_LP_MATCH = 0.5;
         // threshold of number of line points on line segment
-        const unsigned long TH_LPONLS = 5;
+        const unsigned long TH_LPONLS = 10;
         // threshold for kf dist
-        const double TH_KF_DIST = 0.05;
+        const double TH_KF_DIST = 0.1;
 
 
         // all virtual line segments
@@ -448,8 +530,6 @@ namespace ORB_SLAM2 {
             std::vector<KeyFrame*> vKFBestCov = pKF->GetBestCovisibilityKeyFrames(5);
             if (vKFBestCov.size() < 5)
                 continue;
-            // only use keyframes that are best
-//            std::vector<KeyFrame*> vKFBestCov(vKFBestCov5.begin(), vKFBestCov5.begin()+1);
 
             // get the keyframe to match
             for (size_t indKFMatch = indexKF; indKFMatch < vpKF.size(); indKFMatch++){
@@ -460,6 +540,7 @@ namespace ORB_SLAM2 {
                 if (cv::norm(pKF->GetTranslation() - pKFMatch->GetTranslation()) < TH_KF_DIST*pKF->ComputeSceneMedianDepth(2))
                     continue;
                 vpairPKF.push_back(std::make_pair(pKF,pKFMatch));
+                break;
             }
 //            if (!vpairPKF.empty())
 //                break;
@@ -482,14 +563,14 @@ namespace ORB_SLAM2 {
             // find all matched points in two keyframes
             for (std::set<MapPoint*>::iterator it = vpMP.begin(); it != vpMP.end(); it++){
                 // only keep a fixed number of matched points
-                if (vpMPMatched.size() >= 200)
+                if (vpMPMatched.size() >= 100)
                     break;
 
                 // filter out bad map points
                 if ((*it)->isBad())
                     continue;
                 // only keep confident points
-                if ((*it)->Observations() < 5)
+                if ((*it)->Observations() < 10)
                     continue;
 
                 std::set<MapPoint*>::iterator itMatch;
@@ -541,27 +622,6 @@ namespace ORB_SLAM2 {
 
                 VirtualLineSegment& vls = vVLS[indexVLS];
 
-                // make sure the VLS is not perpendicular with the camera plane
-                cv::Mat startVLS3Mat = pKF->TransformPointWtoC(vls.mpMPStart->GetWorldPos());
-                cv::Mat endVLS3Mat = pKF->TransformPointWtoC(vls.mpMPEnd->GetWorldPos());
-                float diffx = std::abs(endVLS3Mat.at<float>(0) - startVLS3Mat.at<float>(0));
-                float diffy = std::abs(endVLS3Mat.at<float>(1) - startVLS3Mat.at<float>(1));
-                float diffz = std::abs(endVLS3Mat.at<float>(2) - startVLS3Mat.at<float>(2));
-                double angleToCamera = cv::fastAtan2(diffz, std::sqrt(diffx*diffx + diffy*diffy)) * 180 / CV_PI;
-                if (angleToCamera > MAX_VLS_ANGLE)
-                    continue;
-
-                // make sure the VLS is not perpendicular with the camera plane
-                cv::Mat startVLS3MatMatch = pKFMatch->TransformPointWtoC(vls.mpMPStart->GetWorldPos());
-                cv::Mat endVLS3MatMatch = pKFMatch->TransformPointWtoC(vls.mpMPEnd->GetWorldPos());
-                float diffxMatch = std::abs(endVLS3MatMatch.at<float>(0) - startVLS3MatMatch.at<float>(0));
-                float diffyMatch = std::abs(endVLS3MatMatch.at<float>(1) - startVLS3MatMatch.at<float>(1));
-                float diffzMatch = std::abs(endVLS3MatMatch.at<float>(2) - startVLS3MatMatch.at<float>(2));
-                double angleToCameraMatch = cv::fastAtan2(diffzMatch, std::sqrt(diffxMatch*diffxMatch +
-                                                                                diffyMatch*diffyMatch)) * 180 / CV_PI;
-                if (angleToCameraMatch > MAX_VLS_ANGLE)
-                    continue;
-
                 cv::Point2f startVLS2f = pKF->ProjectPointOnCamera(vls.mpMPStart->GetWorldPos());
                 cv::Point2f endVLS2f = pKF->ProjectPointOnCamera(vls.mpMPEnd->GetWorldPos());
                 // test if the virtual line segment is in image, this should be always be false
@@ -581,6 +641,28 @@ namespace ORB_SLAM2 {
                 cv::Point2f seVLS2fMatch = endVLS2fMatch - startVLS2fMatch;
                 // filter out virtual line segments that the pair of points are too far away
                 if (cv::norm(seVLS2fMatch) > MAX_VLS_LEN || cv::norm(seVLS2fMatch) < MIM_VLS_LEN)
+                    continue;
+
+                // make sure the VLS is not perpendicular with the camera plane
+                cv::Mat startVLS3Mat = pKF->TransformPointWtoC(vls.mpMPStart->GetWorldPos());
+                cv::Mat endVLS3Mat = pKF->TransformPointWtoC(vls.mpMPEnd->GetWorldPos());
+                cv::Mat diffxyz = endVLS3Mat - startVLS3Mat;
+                double cosS = diffxyz.dot(startVLS3Mat) / cv::norm(diffxyz) / cv::norm(startVLS3Mat);
+                double cosE = diffxyz.dot(endVLS3Mat) / cv::norm(diffxyz) / cv::norm(endVLS3Mat);
+                double angleS = std::acos(std::abs(cosS)) * 180 / CV_PI;
+                double angleE = std::acos(std::abs(cosE)) * 180 / CV_PI;
+                if (angleS < MIN_VLS_ANGLE || angleE < MIN_VLS_ANGLE)
+                    continue;
+
+                // make sure the VLS is not perpendicular with the camera plane
+                cv::Mat startVLS3MatMatch = pKFMatch->TransformPointWtoC(vls.mpMPStart->GetWorldPos());
+                cv::Mat endVLS3MatMatch = pKFMatch->TransformPointWtoC(vls.mpMPEnd->GetWorldPos());
+                cv::Mat diffxyzMatch = endVLS3Mat - startVLS3Mat;
+                double cosSMatch = diffxyzMatch.dot(startVLS3MatMatch) / cv::norm(diffxyzMatch) / cv::norm(startVLS3MatMatch);
+                double cosEMatch = diffxyzMatch.dot(endVLS3MatMatch) / cv::norm(diffxyzMatch) / cv::norm(endVLS3MatMatch);
+                double angleSMatch = std::acos(std::abs(cosSMatch)) * 180 / CV_PI;
+                double angleEMatch = std::acos(std::abs(cosEMatch)) * 180 / CV_PI;
+                if (angleSMatch < MIN_VLS_ANGLE || angleEMatch < MIN_VLS_ANGLE)
                     continue;
 
                 // line segments in the first keyframe
@@ -724,7 +806,7 @@ namespace ORB_SLAM2 {
                         // distance threshold related to the depth of line crossing
                         cv::Mat intersectMatC = pKFMatch->TransformPointWtoC(intersect3D);
                         // the distance is small enough (in pixel)
-                        if (distLCIntersectMatch <= TH_LP_MATCH / intersectMatC.at<float>(2)) {
+                        if (distLCIntersectMatch <= TH_LP_MATCH * std::sqrt(intersectMatC.at<float>(2))) {
                             // there is a match, save it in the virtual line segment
                             LinePoint lp(intersect3f);
                             lp.addRefLineSegment(line, mpLSuLS[line]);
@@ -867,7 +949,7 @@ namespace ORB_SLAM2 {
                         }
                     }
                     // filter out line segment matches that have too much order inversion
-                    if (K > 50)
+                    if (K > 20)
                         continue;
 
                     // compute number of good points
@@ -883,8 +965,8 @@ namespace ORB_SLAM2 {
 
 
                     // project each point onto other neighbour views
-                    std::vector<KeyFrame*> vKFNeighbour = pKF->GetBestCovisibilityKeyFrames(10);
-                    std::vector<KeyFrame*> vKFNeighbourMatch = pKFMatch->GetBestCovisibilityKeyFrames(10);
+                    std::vector<KeyFrame*> vKFNeighbour = pKF->GetBestCovisibilityKeyFrames(5);
+                    std::vector<KeyFrame*> vKFNeighbourMatch = pKFMatch->GetBestCovisibilityKeyFrames(5);
                     vKFNeighbour.insert(vKFNeighbour.end(), vKFNeighbourMatch.begin(), vKFNeighbourMatch.end());
                     // merge neighbour views into one set
                     std::vector<KeyFrame*> vKFNB;
@@ -901,6 +983,13 @@ namespace ORB_SLAM2 {
                         // avoid duplicate neighbour view
                         if (std::find(vKFNB.begin(),vKFNB.end(),pKFNB) != vKFNB.end())
                             continue;
+//                        // try filter out neighbour kf that can lead to false line point match
+//                        cv::Mat diffMatch = pKF->GetTranslation() - pKFMatch->GetTranslation();
+//                        cv::Mat diffNB = pKF->GetTranslation() - pKFNB->GetTranslation();
+//                        double cosDiff = diffMatch.dot(diffNB) / cv::norm(diffMatch) / cv::norm(diffNB);
+//                        double angleDiff = std::acos(std::abs(cosDiff)) * 180 / CV_PI;
+//                        if (angleDiff < MIN_VLS_ANGLE)
+//                            continue;
                         bool nearOtherKFNB = false;
                         for (auto itNB = vKFNB.begin(); itNB != vKFNB.end(); itNB++){
                             if (cv::norm((*itNB)->GetTranslation() - pKFNB->GetTranslation()) < TH_KF_DIST*(*itNB)->ComputeSceneMedianDepth(2)){
@@ -977,7 +1066,7 @@ namespace ORB_SLAM2 {
                                 // distance threshold related to the depth of line crossing
                                 cv::Mat intersectNBC = pKFNB->TransformPointWtoC(lp3d);
                                 // the distance is small enough (in pixel)
-                                if (distLCIntersectNB <= TH_LP_MATCH * intersectNBC.at<float>(2)) {
+                                if (distLCIntersectNB <= TH_LP_MATCH * std::sqrt(intersectNBC.at<float>(2))) {
                                     nSupportedView++;
                                 }
                             }
@@ -1013,7 +1102,7 @@ namespace ORB_SLAM2 {
 
                         }
 
-                        if (nSupportedView >= 2){
+                        if (nSupportedView >= 3){
 
                             std::cout << "Supporting View: " << std::to_string(nSupportedView)
                                       << " total: " << std::to_string(vKFNB.size()) << std::endl;
@@ -1104,7 +1193,7 @@ namespace ORB_SLAM2 {
         std::vector<LinePoint> vLPScoreMapPoint;
         std::vector<MapPoint*> vpMPBestScore;
         for (auto it = mpMPScore.begin(); it != mpMPScore.end(); it++){
-            if (it->second >= 3){
+            if (it->second >= 5){
                 vpMPBestScore.push_back(it->first);
                 LinePoint lpMapPoint(cv::Point3f(it->first->GetWorldPos()));
                 vLPScoreMapPoint.push_back(lpMapPoint);
