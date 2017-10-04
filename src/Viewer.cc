@@ -56,6 +56,9 @@ namespace ORB_SLAM2
         mcx = fSettings["Camera.cx"];
         mcy = fSettings["Camera.cy"];
 
+        int nRGB = fSettings["Camera.RGB"];
+        mbRGB = nRGB;
+
     }
 
 
@@ -82,7 +85,7 @@ namespace ORB_SLAM2
         pangolin::Var<bool> menuCameraView("menu.Camera View",true,true);
         pangolin::Var<bool> menuShowModel("menu.Show Model",true,true);
         pangolin::Var<bool> menuShowTexture("menu.Show Texture",true,true);
-        pangolin::Var<bool> menuShowLines("menu.Show Lines",true,true);
+//        pangolin::Var<bool> menuShowLines("menu.Show Lines",true,true);
         pangolin::Var<bool> menuLocalizationMode("menu.Localization Mode",false,true);
         pangolin::Var<bool> menuReset("menu.Reset",false,false);
 
@@ -106,7 +109,7 @@ namespace ORB_SLAM2
 
         cv::namedWindow("ORB-SLAM2: Current Frame");
 
-        cv::namedWindow("Detected Lines");
+//        cv::namedWindow("Detected Lines");
 
         bool bFollow = true;
         bool bLocalizationMode = false;
@@ -171,7 +174,7 @@ namespace ORB_SLAM2
             if(menuShowKeyFrames || menuShowGraph)
                 mpMapDrawer->DrawKeyFrames(menuShowKeyFrames,menuShowGraph);
             if(menuShowPoints) {
-//                mpMapDrawer->DrawMapPoints();
+                mpMapDrawer->DrawMapPoints();
                 // carv: show model points
                 mpModelDrawer->DrawModelPoints();
             }
@@ -179,23 +182,23 @@ namespace ORB_SLAM2
             CheckGlDieOnError()
             // carv: show model or triangle with light from camera
             if(menuShowModel && menuShowTexture) {
-                mpModelDrawer->DrawModel();
+                mpModelDrawer->DrawModel(mbRGB);
             }
             else if (menuShowModel && !menuShowTexture) {
                 mpModelDrawer->DrawTriangles(MapTwc);
             }
             else if (!menuShowModel && menuShowTexture) {
-                mpModelDrawer->DrawFrame();
+                mpModelDrawer->DrawFrame(mbRGB);
             }
             CheckGlDieOnError()
 
             pangolin::FinishFrame();
 
-            //carv: show detected lines
-            if(menuShowLines){
-                cv::Mat im = mpModelDrawer->DrawLines();
-                cv::imshow("Detected Lines",im);
-            }
+//            //carv: show detected lines
+//            if(menuShowLines){
+//                cv::Mat im = mpModelDrawer->DrawLines();
+//                cv::imshow("Detected Lines",im);
+//            }
 
             cv::Mat im = mpFrameDrawer->DrawFrame();
             cv::imshow("ORB-SLAM2: Current Frame",im);
@@ -216,7 +219,7 @@ namespace ORB_SLAM2
                 menuCameraView = true;
                 menuShowModel = true;
                 menuShowTexture = true;
-                menuShowLines = true;
+//                menuShowLines = true;
 
                 mpSystem->Reset();
                 menuReset = false;

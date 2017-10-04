@@ -83,6 +83,7 @@ namespace ORB_SLAM2
 
         float mViewpointX, mViewpointY, mViewpointZ, mViewpointF;
         float mfx, mfy, mcx, mcy;
+        bool mbRGB;
 
         bool CheckFinish();
         void SetFinish();

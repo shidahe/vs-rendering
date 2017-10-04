@@ -28,10 +28,10 @@ namespace ORB_SLAM2
     public:
         ModelDrawer();
 
-        void DrawModel();
+        void DrawModel(bool bRGB);
         void DrawModelPoints();
         void DrawTriangles(pangolin::OpenGlMatrix &Twc);
-        void DrawFrame();
+        void DrawFrame(bool bRGB);
         cv::Mat DrawLines();
 
         void UpdateModel();

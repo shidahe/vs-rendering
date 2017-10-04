@@ -8,9 +8,6 @@
 
 #include <chrono>
 
-// main header file for Line3D++
-//#include "line3D.h"
-
 // Header files needed by EDLines
 #include <stdio.h>
 #include <stdlib.h>
@@ -59,39 +56,39 @@ namespace ORB_SLAM2 {
 
                 UpdateModelDrawer();
             }
-            else {
-
+//            else {
+//
 //                AddPointsOnLineSegments();
-            }
+//            }
 
             ResetIfRequested();
 
             if(CheckFinish())
                 break;
 
-            usleep(100);
+            usleep(1000);
         }
 
-        std::cout << std::endl << "Getting line crossings ..." << std::endl;
-        std::clock_t start;
-        double duration;
-        start = std::clock();
-        std::vector<LinePoint> vPOnLine = GetPointsOnLineSegmentsOffline();
-        duration = (std::clock() - start) / (double)CLOCKS_PER_SEC;
-        std::cout << std::endl << "Computing line crossing took " << std::to_string(duration) << "s" << std::endl;
-
-        std::cout << std::endl << "Saving line crossings to OBJ file ..." << std::endl;
-        saveLinePointToFile(vPOnLine, "line_crossings.obj");
-        std::cout << std::endl << "line crossings saved!" << std::endl;
-
-        //CARV
-        {
-            unique_lock<mutex> lock(mMutexTranscript);
-            std::cout << std::endl << "Saving transcript to file ..." << std::endl;
-            mTranscriptInterface.writeToFile("sfmtranscript_orbslam.txt");
-            std::cout << std::endl << "transcript saved!" << std::endl;
-        }
-
+//        std::cout << std::endl << "Getting line crossings ..." << std::endl;
+//        std::clock_t start;
+//        double duration;
+//        start = std::clock();
+//        std::vector<LinePoint> vPOnLine = GetPointsOnLineSegmentsOffline();
+//        duration = (std::clock() - start) / (double)CLOCKS_PER_SEC;
+//        std::cout << std::endl << "Computing line crossing took " << std::to_string(duration) << "s" << std::endl;
+//
+//        std::cout << std::endl << "Saving line crossings to OBJ file ..." << std::endl;
+//        saveLinePointToFile(vPOnLine, "line_crossings.obj");
+//        std::cout << std::endl << "line crossings saved!" << std::endl;
+//
+//        //CARV
+//        {
+//            unique_lock<mutex> lock(mMutexTranscript);
+//            std::cout << std::endl << "Saving transcript to file ..." << std::endl;
+//            mTranscriptInterface.writeToFile("sfmtranscript_orbslam.txt");
+//            std::cout << std::endl << "transcript saved!" << std::endl;
+//        }
+//
         SetFinish();
 
     }

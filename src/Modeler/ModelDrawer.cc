@@ -10,7 +10,7 @@ namespace ORB_SLAM2
     {
     }
 
-    void ModelDrawer::DrawModel()
+    void ModelDrawer::DrawModel(bool bRGB)
     {
         // select 4 KFs
         int numKFs = 1;
@@ -31,11 +31,19 @@ namespace ORB_SLAM2
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
                 // image are saved in RGB format, grayscale images are converted
-                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
-                             imSize.width, imSize.height, 0,
-                             GL_RGB,
-                             GL_UNSIGNED_BYTE,
-                             imAndTexFrame[i].first.data);
+                if (bRGB) {
+                    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
+                                 imSize.width, imSize.height, 0,
+                                 GL_BGR,
+                                 GL_UNSIGNED_BYTE,
+                                 imAndTexFrame[i].first.data);
+                } else {
+                    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
+                                 imSize.width, imSize.height, 0,
+                                 GL_RGB,
+                                 GL_UNSIGNED_BYTE,
+                                 imAndTexFrame[i].first.data);
+                }
             }
 
             UpdateModel();
@@ -175,7 +183,7 @@ namespace ORB_SLAM2
 
     }
 
-    void ModelDrawer::DrawFrame()
+    void ModelDrawer::DrawFrame(bool bRGB)
     {
         // select the last frame
         int numKFs = 1;
@@ -190,10 +198,17 @@ namespace ORB_SLAM2
             }
             cv::Size imSize = imAndTexFrame[0].first.size();
 
-            pangolin::GlTexture imageTexture(imSize.width, imSize.height, GL_RGB, false, 0, GL_RGB,
-                                             GL_UNSIGNED_BYTE);
-            imageTexture.Upload(imAndTexFrame[0].first.data, GL_RGB, GL_UNSIGNED_BYTE);
-            imageTexture.RenderToViewportFlipY();
+            if(bRGB) {
+                pangolin::GlTexture imageTexture(imSize.width, imSize.height, GL_RGB, false, 0, GL_BGR,
+                                                 GL_UNSIGNED_BYTE);
+                imageTexture.Upload(imAndTexFrame[0].first.data, GL_BGR, GL_UNSIGNED_BYTE);
+                imageTexture.RenderToViewportFlipY();
+            } else {
+                pangolin::GlTexture imageTexture(imSize.width, imSize.height, GL_RGB, false, 0, GL_RGB,
+                                                 GL_UNSIGNED_BYTE);
+                imageTexture.Upload(imAndTexFrame[0].first.data, GL_RGB, GL_UNSIGNED_BYTE);
+                imageTexture.RenderToViewportFlipY();
+            }
 
         }
     }

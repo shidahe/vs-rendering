@@ -132,7 +132,7 @@ namespace ORB_SLAM2 {
         void saveLinePointToFile(std::vector<LinePoint>& vPOnLine, const std::string & strFileName);
         double computeNG(double N, double Khat);
 
-            void AddKeyFrameEntry(KeyFrame* pKF);
+        void AddKeyFrameEntry(KeyFrame* pKF);
         void AddDeletePointEntry(MapPoint* pMP);
         void AddDeleteObservationEntry(KeyFrame* pKF, MapPoint* pMP);
         void AddAdjustmentEntry(std::set<KeyFrame*> & sAdjustSet, std::set<MapPoint*> & sMapPoints);

@@ -251,8 +251,8 @@ void SFMTranscriptInterface_ORBSLAM::addKeyFrameInsertionEntry(KeyFrame *k){
                 continue;
             if(m_mMapPoint_Index.count(point) == 0){
                 // add confident points
-                if (point->Observations() < 5)
-                    continue;
+//                if (point->Observations() < 5)
+//                    continue;
 
                 // check if it has valid observation first
                 std::map<KeyFrame*, size_t> mObservations = point->GetObservations();
@@ -299,16 +299,12 @@ void SFMTranscriptInterface_ORBSLAM::addKeyFrameInsertionEntry(KeyFrame *k){
                 // It's not a new point:
                 sVisListExcludingNewPoints.insert(m_mMapPoint_Index[point]); // To be added after the new points in the following loop
             }
-            //TODO: remove
-            break;
         }
 
         // Log all the visibility-ray observations for this KF excluding the newly added points
         for(std::set<int>::iterator it = sVisListExcludingNewPoints.begin(); it != sVisListExcludingNewPoints.end(); it++){
             ssTmp << "observation: " << *it;
             m_SFMTranscript.addLine(ssTmp.str()); ssTmp.str("");
-            //TODO: remove
-            break;
         }
 
         // Close this new-KF entry in the transcript

@@ -318,6 +318,10 @@ namespace dlovi {
 
         hndlQ = vecVertexHandles[vertexIndex];
 
+        // TODO：DEBUG data corruption
+        if (! dt.is_vertex(hndlQ))
+            return;
+
         // Step 1:
         set<Delaunay3::Cell_handle> setIncidentCells;
         dt.incident_cells(hndlQ, std::inserter(setIncidentCells, setIncidentCells.begin()));
@@ -1572,7 +1576,7 @@ namespace dlovi {
         const double P_no_constr_X1 = 1.0;
 
         //const double lambda_smooth = 0.3; //0.75;  // Good values approx. < 0.5 to 1
-        const double lambda_smooth = 0.2; //0.75;  // Good values approx. < 0.5 to 1
+        const double lambda_smooth = 0.1; //0.75;  // Good values approx. < 0.5 to 1
 
         // Construct the graph's data terms
         for (it = dt.finite_cells_begin(); it != dt.finite_cells_end(); it++) {
