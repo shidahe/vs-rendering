@@ -1,5 +1,5 @@
 # ORB-SLAM + Freespace-Carving
-Note: Densifing point cloud using virtual line segments is diabled.
+Note: Densifing point cloud using virtual line segments is disabled.
 
 ## Additional dependency for Freespace-Carving
 
