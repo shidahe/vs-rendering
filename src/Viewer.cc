@@ -59,8 +59,10 @@ namespace ORB_SLAM2
         int nRGB = fSettings["Camera.RGB"];
         mbRGB = nRGB;
 
+        // Set member matrix
+        mProjectionCamera = pangolin::ProjectionMatrix(mImageWidth,mImageHeight,mfx,mfy,mcx,mcy,0.1,1000);
+        mViewCamera = pangolin::ModelViewLookAt(0,0,0, 0,0,1, 0.0,-1.0, 0.0);
     }
-
 
     void Viewer::Run()
     {
@@ -79,7 +81,7 @@ namespace ORB_SLAM2
 
         pangolin::CreatePanel("menu").SetBounds(0.0,1.0,0.0,pangolin::Attach::Pix(175));
         pangolin::Var<bool> menuFollowCamera("menu.Follow Camera",true,true);
-        pangolin::Var<bool> menuShowPoints("menu.Show Points",true,true);
+        pangolin::Var<bool> menuShowPoints("menu.Show Points",false,true);
         pangolin::Var<bool> menuShowKeyFrames("menu.Show KeyFrames",false,true);
         pangolin::Var<bool> menuShowGraph("menu.Show Graph",false,true);
         pangolin::Var<bool> menuCameraView("menu.Camera View",true,true);
@@ -98,11 +100,14 @@ namespace ORB_SLAM2
                 pangolin::ModelViewLookAt(0,0,0, 0,0,1, 0.0,-1.0, 0.0)
         );
 
+        pangolin::Handler3D_VS* pHandler = new pangolin::Handler3D_VS(s_map);
+//        pHandler->
+
         // Add named OpenGL viewport to window and provide 3D Handler
         pangolin::View& d_map = pangolin::CreateDisplay()
 //                .SetBounds(0.0, 1.0, pangolin::Attach::Pix(175), 1.0, -1024.0f/768.0f)
                 .SetBounds(0.0, 1.0, pangolin::Attach::Pix(175), 1.0, -mImageWidth/mImageHeight)
-                .SetHandler(new pangolin::Handler3D(s_map));
+                .SetHandler(pHandler);
 
         pangolin::OpenGlMatrix MapTwc;
         MapTwc.SetIdentity();
@@ -121,6 +126,8 @@ namespace ORB_SLAM2
         pangolin::OpenGlMatrix projectionCamera = pangolin::ProjectionMatrix(mImageWidth,mImageHeight,mfx,mfy,mcx,mcy,0.1,1000);
         pangolin::OpenGlMatrix viewAbove = pangolin::ModelViewLookAt(mViewpointX,mViewpointY,mViewpointZ, 0,0,0,0.0,-1.0, 0.0);
         pangolin::OpenGlMatrix viewCamera = pangolin::ModelViewLookAt(0,0,0, 0,0,1, 0.0,-1.0, 0.0);
+
+        KeyFrame *kf = NULL;
 
         while(1)
         {
@@ -178,6 +185,10 @@ namespace ORB_SLAM2
                 // carv: show model points
                 mpModelDrawer->DrawModelPoints();
             }
+
+            // Draw ctrl-clicked point
+            mpModelDrawer->DrawTarget(MapTwc, pHandler->target);
+
 
             CheckGlDieOnError()
             // carv: show model or triangle with light from camera
@@ -299,6 +310,124 @@ namespace ORB_SLAM2
     {
         unique_lock<mutex> lock(mMutexStop);
         mbStopped = false;
+    }
+
+
+
+    cv::Mat Viewer::GetTarget()
+    {
+        return mpModelDrawer->GetTarget();
+    }
+
+    void Viewer::SetTarget(cv::Mat cameraPose, int x, int y)
+    {
+        pangolin::OpenGlMatrix MapTwc;
+        MapTwc.SetIdentity();
+        GetOpenGLCameraMatrix(MapTwc, cameraPose);
+
+        GLdouble pc[3];
+        GLdouble pw[3];
+
+        const int zl = (HWIN*2+1);
+        const int zsize = zl*zl;
+        GLfloat zs[zsize];
+
+        glReadBuffer(GL_FRONT);
+        glReadPixels(x-HWIN,y-HWIN,zl,zl,GL_DEPTH_COMPONENT,GL_FLOAT,zs);
+
+        GLfloat mindepth = *(std::min_element(zs,zs+zsize));
+//        if(mindepth == 1) mindepth = 0.0;
+
+        const GLint viewport[4] = {0,0,(int)mImageWidth,(int)mImageHeight};
+        const pangolin::OpenGlMatrix proj = mProjectionCamera;
+        pangolin::glUnProject(x, y, mindepth, pangolin::Identity4d, proj.m, viewport, &pc[0], &pc[1], &pc[2]);
+
+        const pangolin::OpenGlMatrix mv = mViewCamera;
+
+        GLdouble T_wc[3*4];
+        pangolin::LieSE3from4x4(T_wc, mv.Inverse().m );
+        pangolin::LieApplySE3vec(pw, T_wc, pc);
+
+        Eigen::Vector3d target = Eigen::Map<const Eigen::Matrix<GLdouble,3,1>>(pw).cast<double>();
+
+        // Send to model drawer
+        mpModelDrawer->SetTarget(MapTwc, target);
+
+    }
+
+    void Viewer::GetOpenGLCameraMatrix(pangolin::OpenGlMatrix &M, cv::Mat cameraPose)
+    {
+        if(!cameraPose.empty())
+        {
+            cv::Mat Rwc(3,3,CV_32F);
+            cv::Mat twc(3,1,CV_32F);
+            Rwc = cameraPose.rowRange(0,3).colRange(0,3).t();
+            twc = -Rwc*cameraPose.rowRange(0,3).col(3);
+
+            M.m[0] = Rwc.at<float>(0,0);
+            M.m[1] = Rwc.at<float>(1,0);
+            M.m[2] = Rwc.at<float>(2,0);
+            M.m[3]  = 0.0;
+
+            M.m[4] = Rwc.at<float>(0,1);
+            M.m[5] = Rwc.at<float>(1,1);
+            M.m[6] = Rwc.at<float>(2,1);
+            M.m[7]  = 0.0;
+
+            M.m[8] = Rwc.at<float>(0,2);
+            M.m[9] = Rwc.at<float>(1,2);
+            M.m[10] = Rwc.at<float>(2,2);
+            M.m[11]  = 0.0;
+
+            M.m[12] = twc.at<float>(0);
+            M.m[13] = twc.at<float>(1);
+            M.m[14] = twc.at<float>(2);
+            M.m[15]  = 1.0;
+        }
+        else
+            M.SetIdentity();
+    }
+
+}
+
+
+// Custom mouse handler
+namespace pangolin {
+
+    Handler3D_VS::Handler3D_VS(OpenGlRenderState& cam_state, AxisDirection enforce_up, float trans_scale, float zoom_fraction)
+            : Handler3D(cam_state, enforce_up, trans_scale, zoom_fraction)
+    {
+        target.setZero();
+    }
+
+    void Handler3D_VS::Mouse(View &display, MouseButton button, int x, int y, bool pressed, int button_state)
+    {
+        Handler3D::Mouse(display, button, x, y, pressed, button_state);
+
+        if (button_state & MouseButtonLeft && button_state & KeyModifierCtrl) {
+            GLprecision pc[3];
+            GLprecision pw[3];
+
+            const int zl = (HWIN*2+1);
+            const int zsize = zl*zl;
+            GLfloat zs[zsize];
+
+            glReadBuffer(GL_FRONT);
+            glReadPixels(x-HWIN,y-HWIN,zl,zl,GL_DEPTH_COMPONENT,GL_FLOAT,zs);
+
+            GLfloat mindepth = *(std::min_element(zs,zs+zsize));
+            if(mindepth == 1) mindepth = (GLfloat)last_z;
+
+            PixelUnproject(display, x, y, mindepth, pc);
+
+            const pangolin::OpenGlMatrix mv = cam_state->GetModelViewMatrix();
+
+            GLprecision T_wc[3*4];
+            LieSE3from4x4(T_wc, mv.Inverse().m );
+            LieApplySE3vec(pw, T_wc, pc);
+
+            target = Eigen::Map<const Eigen::Matrix<GLprecision,3,1>>(pw).cast<double>();
+        }
     }
 
 }

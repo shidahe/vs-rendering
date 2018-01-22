@@ -8,6 +8,7 @@ namespace ORB_SLAM2
 {
     ModelDrawer::ModelDrawer():mbModelUpdateRequested(false), mbModelUpdateDone(true)
     {
+        target.setZero();
     }
 
     void ModelDrawer::DrawModel(bool bRGB)
@@ -16,7 +17,7 @@ namespace ORB_SLAM2
         int numKFs = 1;
         vector<pair<cv::Mat,TextureFrame>> imAndTexFrame = mpModeler->GetTextures(numKFs);
 
-        if (imAndTexFrame.size() >= numKFs) {
+        if ((int)imAndTexFrame.size() >= numKFs) {
 //            static unsigned int frameTex[4] = {0, 0, 0, 0};
             static unsigned int frameTex[1] = {0};
             if (!frameTex[0])
@@ -130,6 +131,36 @@ namespace ORB_SLAM2
         glEnd();
     }
 
+    void ModelDrawer::SetTarget(pangolin::OpenGlMatrix &Twc, Eigen::Vector3d t)
+    {
+        Eigen::Vector3d diff = t - target;
+        if (diff.squaredNorm() > 0.0) {
+            target = t;
+            target_w = Eigen::Transform<double,3,Eigen::Affine>(Twc) * t;
+        }
+    }
+
+    cv::Mat ModelDrawer::GetTarget()
+    {
+        cv::Mat T = (cv::Mat_<float>(3,1) << target_w[0], target[1], target[2]);
+        return T;
+    }
+
+    void ModelDrawer::DrawTarget()
+    {
+        glPointSize(10);
+        glBegin(GL_POINTS);
+        glColor3f(0.0, 1.0, 0.0);
+        glVertex3d(target_w[0], target_w[1], target_w[2]);
+        glEnd();
+    }
+
+    void ModelDrawer::DrawTarget(pangolin::OpenGlMatrix &Twc, Eigen::Vector3d t)
+    {
+        SetTarget(Twc, t);
+        DrawTarget();
+    }
+
     void ModelDrawer::DrawTriangles(pangolin::OpenGlMatrix &Twc)
     {
         UpdateModel();
@@ -189,7 +220,7 @@ namespace ORB_SLAM2
         int numKFs = 1;
         vector<pair<cv::Mat,TextureFrame>> imAndTexFrame = mpModeler->GetTextures(numKFs);
 
-        if (imAndTexFrame.size() >= numKFs) {
+        if ((int)imAndTexFrame.size() >= numKFs) {
             glColor3f(1.0,1.0,1.0);
 
             if (imAndTexFrame[0].first.empty()){

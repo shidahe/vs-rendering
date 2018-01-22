@@ -34,6 +34,11 @@ namespace ORB_SLAM2
         void DrawFrame(bool bRGB);
         cv::Mat DrawLines();
 
+        void SetTarget(pangolin::OpenGlMatrix &Twc, Eigen::Vector3d t);
+        cv::Mat GetTarget();
+        void DrawTarget(pangolin::OpenGlMatrix &Twc, Eigen::Vector3d t);
+        void DrawTarget();
+
         void UpdateModel();
         void SetUpdatedModel(const vector<dlovi::Matrix> & modelPoints, const list<dlovi::Matrix> & modelTris);
 
@@ -56,6 +61,8 @@ namespace ORB_SLAM2
         std::pair<vector<dlovi::Matrix>, list<dlovi::Matrix>> mModel;
         std::pair<vector<dlovi::Matrix>, list<dlovi::Matrix>> mUpdatedModel;
 
+        Eigen::Vector3d target;
+        Eigen::Vector3d target_w;
     };
 
 } //namespace ORB_SLAM

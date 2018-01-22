@@ -132,6 +132,10 @@ namespace ORB_SLAM2
         std::vector<MapPoint*> GetTrackedMapPoints();
         std::vector<cv::KeyPoint> GetTrackedKeyPointsUn();
 
+        // Set and get 3D target
+        cv::Mat GetTarget();
+        void SetTarget(cv::Mat cameraPose, int x, int y); //cameraPose: Tcw of keyframes
+
     private:
 
         // Input sensor

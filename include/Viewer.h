@@ -32,9 +32,13 @@
 
 #include <mutex>
 
+
+// half of patch size (getting pixel depth)
+//#define HWIN 8
+#define HWIN 1
+
 namespace ORB_SLAM2
 {
-
     class Tracking;
     class FrameDrawer;
     class MapDrawer;
@@ -63,6 +67,14 @@ namespace ORB_SLAM2
         bool isStopped();
 
         void Release();
+
+        // set target by camera pose and image coordinates
+        void SetTarget(cv::Mat cameraPose, int x, int y);
+        cv::Mat GetTarget();
+        void GetOpenGLCameraMatrix(pangolin::OpenGlMatrix &M, cv::Mat cameraPose);
+
+        pangolin::OpenGlMatrix mProjectionCamera;
+        pangolin::OpenGlMatrix mViewCamera;
 
     private:
 
@@ -99,6 +111,14 @@ namespace ORB_SLAM2
 
 }
 
+// Custom mouse handler
+namespace pangolin {
+    struct Handler3D_VS : Handler3D {
+        Handler3D_VS(OpenGlRenderState& cam_state, AxisDirection enforce_up=AxisNone, float trans_scale=0.01f, float zoom_fraction= PANGO_DFLT_HANDLER3D_ZF);
+        void Mouse(View &display, MouseButton button, int x, int y, bool pressed, int button_state);
+        Eigen::Vector3d target;
+    };
+}
 
 #endif // VIEWER_H
 	

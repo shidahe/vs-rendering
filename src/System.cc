@@ -513,4 +513,25 @@ namespace ORB_SLAM2
         return mTrackedKeyPointsUn;
     }
 
+
+    // Set and get 3D target using Viewer
+    cv::Mat System::GetTarget()
+    {
+        if (mpViewer) {
+            return mpViewer->GetTarget();
+        } else {
+            std::cerr << "Error: viewer is not initialized, cannot get 3D target." << std::endl;
+            return cv::Mat::zeros(3,1,CV_32F);
+        }
+    }
+
+    void System::SetTarget(cv::Mat cameraPose, int x, int y)
+    {
+        if (mpViewer) {
+            mpViewer->SetTarget(cameraPose,x,y);
+        } else {
+            std::cerr << "Error: viewer is not initialized, cannot set 3D target." << std::endl;
+        }
+    }
+
 } //namespace ORB_SLAM
