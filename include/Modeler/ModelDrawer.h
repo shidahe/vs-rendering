@@ -32,7 +32,6 @@ namespace ORB_SLAM2
         void DrawModelPoints();
         void DrawTriangles(pangolin::OpenGlMatrix &Twc);
         void DrawFrame(bool bRGB);
-        cv::Mat DrawLines();
 
         void SetTarget(pangolin::OpenGlMatrix &Twc, Eigen::Vector3d t);
         cv::Mat GetTarget();

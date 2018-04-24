@@ -14,6 +14,9 @@ namespace ORB_SLAM2
 
     void ModelDrawer::DrawModel(bool bRGB)
     {
+        //TODO: save image into keyframe structure and use map keyframes to render
+        //TODO: find a way to reduce the number of rendering keyframes
+
         // select 10 KFs
         int numKFs = 10;
         vector<pair<cv::Mat,TextureFrame>> imAndTexFrame = mpModeler->GetTextures(numKFs);
@@ -22,7 +25,6 @@ namespace ORB_SLAM2
 
         if ((int)imAndTexFrame.size() >= numKFs) {
 
-//            static unsigned int frameTex[4] = {0,0,0,0};
             static unsigned int frameTex = 0;
 
             if (!frameTex)
@@ -36,8 +38,6 @@ namespace ORB_SLAM2
                 if (imAndTexFrame[i].first.channels() == 3) {
                     mat_array[count] = imAndTexFrame[i].first;
                     count++;
-//                    std::cout << "imsize" << i << " " << imSize.height << "x" << imSize.width << "x"
-//                              << mat_array[i].channels() << endl;
                 }
             }
             if (count < numKFs)
@@ -107,8 +107,6 @@ namespace ORB_SLAM2
                 dlovi::Matrix point2 = GetPoints()[(*it)(2)];
 
                 for (int i = 0; i < numKFs; i++) {
-
-//                    int tex_ind = tex4tri[index];
 
                     TextureFrame tex = imAndTexFrame[i].second;
                     vector<float> uv0 = tex.GetTexCoordinate(point0(0), point0(1), point0(2), imSize);
@@ -266,13 +264,6 @@ namespace ORB_SLAM2
 
         }
     }
-
-    cv::Mat ModelDrawer::DrawLines()
-    {
-        cv::Mat im = mpModeler->GetImageWithLines();
-        return im;
-    }
-
 
     void ModelDrawer::UpdateModel()
     {

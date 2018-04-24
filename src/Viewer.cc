@@ -69,7 +69,6 @@ namespace ORB_SLAM2
         mbFinished = false;
         mbStopped = false;
 
-//        pangolin::CreateWindowAndBind("ORB-SLAM2: Map Viewer",1024,768);
         pangolin::CreateWindowAndBind("ORB-SLAM2: Map Viewer",mImageWidth+175,mImageHeight);
 
         // 3D Mouse handler requires depth testing to be enabled
@@ -87,25 +86,20 @@ namespace ORB_SLAM2
         pangolin::Var<bool> menuCameraView("menu.Camera View",true,true);
         pangolin::Var<bool> menuShowModel("menu.Show Model",true,true);
         pangolin::Var<bool> menuShowTexture("menu.Show Texture",true,true);
-//        pangolin::Var<bool> menuShowLines("menu.Show Lines",true,true);
         pangolin::Var<bool> menuLocalizationMode("menu.Localization Mode",false,true);
         pangolin::Var<bool> menuReset("menu.Reset",false,false);
 
         // Define Camera Render Object (for view / scene browsing)
         pangolin::OpenGlRenderState s_map(
-//                pangolin::ProjectionMatrix(1024,768,mViewpointF,mViewpointF,512,389,0.1,1000),
-//                pangolin::ModelViewLookAt(mViewpointX,mViewpointY,mViewpointZ, 0,0,0,0.0,-1.0, 0.0)
                 // carv: using calibrated camera center and focal length
                 pangolin::ProjectionMatrix(mImageWidth,mImageHeight,mfx,mfy,mcx,mcy,0.1,1000),
                 pangolin::ModelViewLookAt(0,0,0, 0,0,1, 0.0,-1.0, 0.0)
         );
 
         pangolin::Handler3D_VS* pHandler = new pangolin::Handler3D_VS(s_map);
-//        pHandler->
 
         // Add named OpenGL viewport to window and provide 3D Handler
         pangolin::View& d_map = pangolin::CreateDisplay()
-//                .SetBounds(0.0, 1.0, pangolin::Attach::Pix(175), 1.0, -1024.0f/768.0f)
                 .SetBounds(0.0, 1.0, pangolin::Attach::Pix(175), 1.0, -mImageWidth/mImageHeight)
                 .SetHandler(pHandler);
 
@@ -113,8 +107,6 @@ namespace ORB_SLAM2
         MapTwc.SetIdentity();
 
         cv::namedWindow("ORB-SLAM2: Current Frame");
-
-//        cv::namedWindow("Detected Lines");
 
         bool bFollow = true;
         bool bLocalizationMode = false;
@@ -141,7 +133,6 @@ namespace ORB_SLAM2
             }
             else if(menuFollowCamera && !bFollow)
             {
-//                s_map.SetModelViewMatrix(pangolin::ModelViewLookAt(mViewpointX,mViewpointY,mViewpointZ, 0,0,0,0.0,-1.0, 0.0));
                 s_map.Follow(MapTwc);
                 bFollow = true;
             }
@@ -205,12 +196,6 @@ namespace ORB_SLAM2
 
             pangolin::FinishFrame();
 
-//            //carv: show detected lines
-//            if(menuShowLines){
-//                cv::Mat im = mpModelDrawer->DrawLines();
-//                cv::imshow("Detected Lines",im);
-//            }
-
             cv::Mat im = mpFrameDrawer->DrawFrame();
             cv::imshow("ORB-SLAM2: Current Frame",im);
             cv::waitKey(mT);
@@ -230,7 +215,6 @@ namespace ORB_SLAM2
                 menuCameraView = true;
                 menuShowModel = true;
                 menuShowTexture = true;
-//                menuShowLines = true;
 
                 mpSystem->Reset();
                 menuReset = false;
@@ -336,7 +320,6 @@ namespace ORB_SLAM2
         glReadPixels(x-HWIN,y-HWIN,zl,zl,GL_DEPTH_COMPONENT,GL_FLOAT,zs);
 
         GLfloat mindepth = *(std::min_element(zs,zs+zsize));
-//        if(mindepth == 1) mindepth = 0.0;
 
         const GLint viewport[4] = {0,0,(int)mImageWidth,(int)mImageHeight};
         const pangolin::OpenGlMatrix proj = mProjectionCamera;
