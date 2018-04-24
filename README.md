@@ -1,4 +1,6 @@
 # ORB-SLAM + Freespace-Carving
+Ctrl-click in the 3D viewer to select a 3D point
+(Note: if you clicked the toggle buton on the left, ctrl-click toggles the button again. In this case, the 3D rendering area need to be selected (click it) before setting a 3D target.)
 
 ## Additional dependency for Freespace-Carving
 
