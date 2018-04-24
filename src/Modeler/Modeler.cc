@@ -167,7 +167,7 @@ namespace ORB_SLAM2 {
         {
             {
                 unique_lock<mutex> lock2(mMutexTranscript);
-                mTranscriptInterface.writeToFile("sfmtranscript_orbslam.txt");
+//                mTranscriptInterface.writeToFile("sfmtranscript_orbslam.txt");
                 mTranscriptInterface.addResetEntry();
                 //TODO: fix crash when initialize again after reset
 //            RunRemainder();
