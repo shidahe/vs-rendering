@@ -21,8 +21,8 @@ namespace ORB_SLAM2 {
 
     Modeler::Modeler(ModelDrawer* pModelDrawer):
             mbResetRequested(false), mbFinishRequested(false), mbFinished(true), mpModelDrawer(pModelDrawer),
-            mnLastNumLines(2), mbFirstKeyFrame(true), mnMaxTextureQueueSize(10), mnMaxFrameQueueSize(5000),
-            mnMaxToLinesQueueSize(500)
+            mnLastNumLines(2), mbFirstKeyFrame(true), mnMaxTextureQueueSize(100), mnMaxFrameQueueSize(5000),
+            mnMaxToLinesQueueSize(50)
     {
         mAlgInterface.setAlgorithmRef(&mObjAlgorithm);
         mAlgInterface.setTranscriptRef(mTranscriptInterface.getTranscriptToProcessRef());

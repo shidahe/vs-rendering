@@ -2,6 +2,7 @@
 // Created by shida on 06/12/16.
 //
 
+#include <Eigen/Geometry>
 #include "Modeler/ModelDrawer.h"
 
 namespace ORB_SLAM2
@@ -13,109 +14,130 @@ namespace ORB_SLAM2
 
     void ModelDrawer::DrawModel(bool bRGB)
     {
-        // select 4 KFs
-        int numKFs = 1;
+        // select 10 KFs
+        int numKFs = 10;
         vector<pair<cv::Mat,TextureFrame>> imAndTexFrame = mpModeler->GetTextures(numKFs);
 
+        UpdateModel();
+
         if ((int)imAndTexFrame.size() >= numKFs) {
-//            static unsigned int frameTex[4] = {0, 0, 0, 0};
-            static unsigned int frameTex[1] = {0};
-            if (!frameTex[0])
-                glGenTextures(numKFs, frameTex);
+
+//            static unsigned int frameTex[4] = {0,0,0,0};
+            static unsigned int frameTex = 0;
+
+            if (!frameTex)
+                glGenTextures(numKFs, &frameTex);
 
             cv::Size imSize = imAndTexFrame[0].first.size();
 
+            cv::Mat mat_array[numKFs];
+            int count = 0;
             for (int i = 0; i < numKFs; i++) {
-                glBindTexture(GL_TEXTURE_2D, frameTex[i]);
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
-                // image are saved in RGB format, grayscale images are converted
-                if (bRGB) {
-                    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
-                                 imSize.width, imSize.height, 0,
-                                 GL_BGR,
-                                 GL_UNSIGNED_BYTE,
-                                 imAndTexFrame[i].first.data);
-                } else {
-                    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
-                                 imSize.width, imSize.height, 0,
-                                 GL_RGB,
-                                 GL_UNSIGNED_BYTE,
-                                 imAndTexFrame[i].first.data);
+                if (imAndTexFrame[i].first.channels() == 3) {
+                    mat_array[count] = imAndTexFrame[i].first;
+                    count++;
+//                    std::cout << "imsize" << i << " " << imSize.height << "x" << imSize.width << "x"
+//                              << mat_array[i].channels() << endl;
                 }
             }
+            if (count < numKFs)
+                return;
 
-            UpdateModel();
+            cv::Mat texture;
+            cv::vconcat(mat_array, numKFs, texture);
 
             glEnable(GL_TEXTURE_2D);
 
-            glBegin(GL_TRIANGLES);
-            glColor3f(1.0,1.0,1.0);
+            glBindTexture(GL_TEXTURE_2D, frameTex);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+            // image are saved in RGB format, grayscale images are converted
+            if (bRGB) {
+                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
+                             imSize.width, imSize.height*numKFs, 0,
+                             GL_BGR,
+                             GL_UNSIGNED_BYTE,
+                             texture.data);
+            } else {
+                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
+                             imSize.width, imSize.height*numKFs, 0,
+                             GL_RGB,
+                             GL_UNSIGNED_BYTE,
+                             texture.data);
+            }
 
-            for (list<dlovi::Matrix>::const_iterator it = GetTris().begin(); it != GetTris().end(); it++) {
+//            // select one texture for each triangle
+//            std::vector<int> tex4tri;
+//            for (list<dlovi::Matrix>::const_iterator it = GetTris().begin(); it != GetTris().end(); it++) {
+//                int tex_ind_curr = -1;
+//
+//                for (int i = 0; i < numKFs; i++) {
+//                    dlovi::Matrix point0 = GetPoints()[(*it)(0)];
+//                    dlovi::Matrix point1 = GetPoints()[(*it)(1)];
+//                    dlovi::Matrix point2 = GetPoints()[(*it)(2)];
+//
+//                    TextureFrame tex = imAndTexFrame[i].second;
+//                    vector<float> uv0 = tex.GetTexCoordinate(point0(0), point0(1), point0(2), imSize);
+//                    vector<float> uv1 = tex.GetTexCoordinate(point1(0), point1(1), point1(2), imSize);
+//                    vector<float> uv2 = tex.GetTexCoordinate(point2(0), point2(1), point2(2), imSize);
+//
+//                    if (uv0.size() == 2 && uv1.size() == 2 && uv2.size() == 2) {
+//                        tex_ind_curr = i;
+//                        break;
+//                    }
+//                }
+//
+//                if (tex_ind_curr < 0)
+//                    tex_ind_curr = 0;
+//
+//                tex4tri.push_back(tex_ind_curr);
+//            }
+
+
+            glBegin(GL_TRIANGLES);
+            glColor3f(1.0, 1.0, 1.0);
+
+            int index = 0;
+            for (list<dlovi::Matrix>::const_iterator it = GetTris().begin(); it != GetTris().end(); it++, index++) {
 
                 dlovi::Matrix point0 = GetPoints()[(*it)(0)];
                 dlovi::Matrix point1 = GetPoints()[(*it)(1)];
                 dlovi::Matrix point2 = GetPoints()[(*it)(2)];
 
-                dlovi::Matrix edge10 = point1 - point0;
-                dlovi::Matrix edge20 = point2 - point0;
+                for (int i = 0; i < numKFs; i++) {
 
-                dlovi::Matrix normal = edge20.cross(edge10);
-                normal = normal / normal.norm();
+//                    int tex_ind = tex4tri[index];
 
-                glNormal3d(normal(0), normal(1), normal(2));
-
-                vector<double> dotProducts;
-                vector<int> indexTex;
-                for (int i = 0; i < numKFs; i++){
-                    cv::Mat texOrient = imAndTexFrame[i].second.GetOrientation();
-                    dlovi::Matrix orientation(3,1);
-                    orientation(0) = texOrient.at<float>(0);
-                    orientation(1) = texOrient.at<float>(1);
-                    orientation(2) = texOrient.at<float>(2);
-
-                    dotProducts.push_back(normal.dot(orientation));
-                    indexTex.push_back(i);
-                }
-
-                sort( begin(indexTex), end(indexTex),
-                      [&](int i1, int i2) { return dotProducts[i1] > dotProducts[i2]; } );
-
-                for (int i = 0; i < numKFs; i++){
-                    int indexCurr = indexTex[i];
-
-                    TextureFrame tex = imAndTexFrame[indexCurr].second;
-                    vector<float> uv0 = tex.GetTexCoordinate(point0(0),point0(1),point0(2),imSize);
-                    vector<float> uv1 = tex.GetTexCoordinate(point1(0),point1(1),point1(2),imSize);
-                    vector<float> uv2 = tex.GetTexCoordinate(point2(0),point2(1),point2(2),imSize);
+                    TextureFrame tex = imAndTexFrame[i].second;
+                    vector<float> uv0 = tex.GetTexCoordinate(point0(0), point0(1), point0(2), imSize);
+                    vector<float> uv1 = tex.GetTexCoordinate(point1(0), point1(1), point1(2), imSize);
+                    vector<float> uv2 = tex.GetTexCoordinate(point2(0), point2(1), point2(2), imSize);
 
                     if (uv0.size() == 2 && uv1.size() == 2 && uv2.size() == 2) {
 
-                        // TODO: not the right way to do multi-texturing
-//                        glDisable(GL_TEXTURE_2D);
-//                        glEnable(GL_TEXTURE_2D);
-//                        glBindTexture(GL_TEXTURE_2D, frameTex[indexCurr]);
-
-                        glTexCoord2f(uv0[0], uv0[1]);
+                        glTexCoord2f(uv0[0], (uv0[1]+i)/numKFs);
                         glVertex3d(point0(0), point0(1), point0(2));
 
-                        glTexCoord2f(uv1[0], uv1[1]);
+                        glTexCoord2f(uv1[0], (uv1[1]+i)/numKFs);
                         glVertex3d(point1(0), point1(1), point1(2));
 
-                        glTexCoord2f(uv2[0], uv2[1]);
+                        glTexCoord2f(uv2[0], (uv2[1]+i)/numKFs);
                         glVertex3d(point2(0), point2(1), point2(2));
 
                         break;
+
                     }
                 }
+
             }
             glEnd();
 
             glDisable(GL_TEXTURE_2D);
+
         }
+
     }
 
     void ModelDrawer::DrawModelPoints()
@@ -136,7 +158,8 @@ namespace ORB_SLAM2
         Eigen::Vector3d diff = t - target;
         if (diff.squaredNorm() > 0.0) {
             target = t;
-            target_w = Eigen::Transform<double,3,Eigen::Affine>(Twc) * t;
+            Eigen::Matrix<double,4,4> m = Twc;
+            target_w = Eigen::Transform<double,3,Eigen::Affine>(m) * t;
         }
     }
 
