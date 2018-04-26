@@ -116,13 +116,19 @@ public:
         return pKF1->mnId<pKF2->mnId;
     }
 
-    //carv:: new methods
+    //CARV:: new methods
     cv::Point2f ProjectPointOnCamera(cv::Mat Pw);
     cv::Mat TransformPointWtoC(cv::Mat Pw);
     Map* GetMap();
     KeyFrame(KeyFrame* pKF);
+    //CARV: not erase when used by drawer
+    void SetNotEraseDrawer();
+    void SetEraseDrawer();
+    //CARV: compute texture coordinate of 3D point
+    vector<float> GetTexCoordinate(float x, float y, float z, cv::Size s);
 
-    // The following variables are accesed from only 1 thread or never change (no mutex needed).
+
+        // The following variables are accesed from only 1 thread or never change (no mutex needed).
 public:
 
     static long unsigned int nNextId;
@@ -193,6 +199,9 @@ public:
     const int mnMaxY;
     const cv::Mat mK;
 
+    //CARV: save image
+    cv::Mat mImage;
+
 
     // The following variables need to be accessed trough a mutex to be thread safe.
 protected:
@@ -227,7 +236,10 @@ protected:
     // Bad flags
     bool mbNotErase;
     bool mbToBeErased;
-    bool mbBad;    
+    bool mbBad;
+
+    //CARV: not erase when used by drawer
+    bool mbNotEraseDrawer;
 
     float mHalfBaseline; // Only for visualization
 

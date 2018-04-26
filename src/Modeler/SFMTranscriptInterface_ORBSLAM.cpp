@@ -316,63 +316,6 @@ void SFMTranscriptInterface_ORBSLAM::addKeyFrameInsertionEntry(KeyFrame *k){
 }
 
 
-void SFMTranscriptInterface_ORBSLAM::addKeyFrameInsertionWithLinesEntry(KeyFrame *k, KeyFrame *kCopy, std::vector<cv::Point3f>& vP) {
-    try{
-        std::stringstream ssTmp;
-        dlovi::Matrix matNewCam(3, 1);
-        dlovi::Matrix matNewPoint(3, 1);
-        int nPointIndex, nCamIndex, nCamIndexOriginal;
-
-        if(m_mKeyFrame_Index.count(kCopy) > 0)
-            throw dlovi::Exception("KeyFrame already has a record.  Double addition.");
-
-        // TODO: Instead of inverting the whole transform, we should be able to just use the negative translation.
-        // GetPoseInverse, seems camera position need to be inversed
-        cv::Mat se3WfromC = kCopy->GetPoseInverse();
-        matNewCam(0) = se3WfromC.at<float>(0,3);
-        matNewCam(1) = se3WfromC.at<float>(1,3);
-        matNewCam(2) = se3WfromC.at<float>(2,3);
-        ssTmp << "new cam: [" << matNewCam(0) << "; " << matNewCam(1) << "; " << matNewCam(2) << "] {";
-        m_SFMTranscript.addLine(ssTmp.str()); ssTmp.str("");
-
-        // Add a record of the new camera to internal map.
-        nCamIndex = m_mKeyFrame_Index.size();
-        m_mKeyFrame_Index[kCopy] = nCamIndex;
-
-        if(m_mKeyFrame_Index.count(k) == 0)
-            throw dlovi::Exception("Original KeyFrame not found.");
-
-        nCamIndexOriginal = m_mKeyFrame_Index[k];
-
-        for(std::vector<cv::Point3f>::iterator it = vP.begin(); it != vP.end(); it++){
-            cv::Point3f pointcv = *it;
-
-            const cv::Mat pos = (cv::Mat_<float>(3, 1) << pointcv.x, pointcv.y, pointcv.z);
-            MapPoint* point = new MapPoint(pos, kCopy, kCopy->GetMap());
-
-            cv::Mat mWorldPos = point->GetWorldPos();
-            matNewPoint(0) = mWorldPos.at<float>(0);
-            matNewPoint(1) = mWorldPos.at<float>(1);
-            matNewPoint(2) = mWorldPos.at<float>(2);
-
-            ssTmp << "new point: [" << matNewPoint(0) << "; " << matNewPoint(1) << "; " << matNewPoint(2)
-                  << "]";
-            ssTmp << ", " << nCamIndex << ", " << nCamIndexOriginal;
-
-            m_SFMTranscript.addLine(ssTmp.str()); ssTmp.str("");
-            // Add a record of the new point to internal map.
-            nPointIndex = m_mMapPoint_Index.size();
-            m_mMapPoint_Index[point] = nPointIndex;
-
-        }
-        // Close this new-KF entry in the transcript
-        m_SFMTranscript.addLine("}");
-    }
-    catch(std::exception & ex){
-        dlovi::Exception ex2(ex.what()); ex2.tag("SFMTranscriptInterface_ORBSLAM", "addKeyFrameInsertionEntry"); cerr << ex2.what() << endl; //ex2.raise();
-    }
-}
-
 void SFMTranscriptInterface_ORBSLAM::addBundleAdjustmentEntry(set<KeyFrame *> & sAdjustSet, set<MapPoint *> & sMapPoints){
     try{
         if(! m_bSuppressBundleAdjustmentLogging){

@@ -261,14 +261,10 @@ namespace ORB_SLAM2
         else
             mCurrentFrame = Frame(mImGray,timestamp,mpORBextractorLeft,mpORBVocabulary,mK,mDistCoef,mbf,mThDepth);
 
-        Track();
+        //CARV: save rgb image
+        mCurrentFrame.SaveImage(im);
 
-        //CARV: aquire rgb image and frameid
-        if(mState==OK){
-            cv::Mat imu;
-            cv::undistort(im,imu,mK,mDistCoef);
-            mpModeler->AddFrameImage(mCurrentFrame.mnId, imu);
-        }
+        Track();
 
         return mCurrentFrame.mTcw.clone();
     }

@@ -13,7 +13,7 @@ namespace ORB_SLAM2 {
 
     Modeler::Modeler(ModelDrawer* pModelDrawer):
             mbResetRequested(false), mbFinishRequested(false), mbFinished(true), mpModelDrawer(pModelDrawer),
-            mnLastNumLines(2), mbFirstKeyFrame(true), mnMaxTextureQueueSize(100), mnMaxFrameQueueSize(500)
+            mnLastNumLines(2), mbFirstKeyFrame(true)
     {
         mAlgInterface.setAlgorithmRef(&mObjAlgorithm);
         mAlgInterface.setTranscriptRef(mTranscriptInterface.getTranscriptToProcessRef());
@@ -107,21 +107,8 @@ namespace ORB_SLAM2 {
             mbFirstKeyFrame = false;
         } else {
             unique_lock<mutex> lock(mMutexTranscript);
-
-//            auto t1 = std::chrono::high_resolution_clock::now();
-//            std::vector<cv::Point3f> vPOnLine = GetPointsOnLineSegments(pKF);
-//            auto t2 = std::chrono::high_resolution_clock::now();
-//            std::cout << "GetPointsOnLineSegments() took "
-//                      << std::chrono::duration_cast<std::chrono::milliseconds>(t2-t1).count()
-//                      << " milliseconds\n";
-//
-//            mTranscriptInterface.addKeyFrameInsertionWithLinesEntry(pKF,vPOnLine);
-
             mTranscriptInterface.addKeyFrameInsertionEntry(pKF);
-
         }
-
-        AddTexture(pKF);
 
         pKF->SetErase();
     }
@@ -173,29 +160,6 @@ namespace ORB_SLAM2 {
 //            RunRemainder();
 //            mAlgInterface.rewind();
             }
-            {
-                unique_lock<mutex> lock2(mMutexTexture);
-//                {
-//                    unique_lock<mutex> lock3(mMutexFrame);
-//                    for (int i = 0; i < mnMaxTextureQueueSize; i++){
-//                        TextureFrame texFrame = mdTextureQueue[i];
-//                        std::string imname = "texKF" + std::to_string(i);
-//                        if (texFrame.mpKF != NULL){
-//                            if (texFrame.mpKF->isBad()){
-//                                imname = imname + "bad";
-//                            } else {
-//                                imname = imname + "good";
-//                            }
-//                        }
-//                        cv::imwrite(imname+".jpg", mmFrameQueue[texFrame.mFrameID]);
-//                    }
-//                }
-                mdTextureQueue.clear();
-            }
-            {
-                unique_lock<mutex> lock2(mMutexFrame);
-                mmFrameQueue.clear();
-            }
 
             mbFirstKeyFrame = true;
 
@@ -227,65 +191,5 @@ namespace ORB_SLAM2 {
         unique_lock<mutex> lock(mMutexFinish);
         return mbFinished;
     }
-
-    void Modeler::AddTexture(KeyFrame* pKF)
-    {
-        unique_lock<mutex> lock(mMutexTexture);
-
-        TextureFrame texFrame(pKF);
-        if (mdTextureQueue.size() >= mnMaxTextureQueueSize) {
-            mdTextureQueue.pop_front();
-        }
-        mdTextureQueue.push_back(texFrame);
-    }
-
-    void Modeler::AddTexture(Frame* pF)
-    {
-        unique_lock<mutex> lock(mMutexTexture);
-
-        TextureFrame texFrame(pF);
-        if (mdTextureQueue.size() >= mnMaxTextureQueueSize) {
-            mdTextureQueue.pop_front();
-        }
-        mdTextureQueue.push_back(texFrame);
-    }
-
-    void Modeler::AddFrameImage(const long unsigned int &frameID, const cv::Mat &im)
-    {
-        unique_lock<mutex> lock(mMutexFrame);
-
-        // make a copy of image and save as RGB
-        cv::Mat imc;
-        im.copyTo(imc);
-        if(imc.channels() < 3)
-            cvtColor(imc,imc,CV_GRAY2RGB);
-
-        if (mmFrameQueue.size() >= mnMaxFrameQueueSize) {
-            mmFrameQueue.erase(mmFrameQueue.begin());
-        }
-        if (mmFrameQueue.count(frameID) > 0){
-            std::cerr << "ERROR: trying to add an existing frame" << std::endl;
-            return;
-        }
-        mmFrameQueue.insert(make_pair(frameID,imc));
-    }
-
-
-    // get last n keyframes for texturing
-    std::vector<pair<cv::Mat,TextureFrame>> Modeler::GetTextures(int n)
-    {
-        unique_lock<mutex> lock(mMutexTexture);
-        unique_lock<mutex> lock2(mMutexFrame);
-        int nLastKF = mdTextureQueue.size() - 1;
-        std::vector<pair<cv::Mat,TextureFrame>> imAndTexFrame;
-        // n most recent KFs
-        for (int i = 0; i < n && i <= nLastKF; i++){
-            TextureFrame texFrame = mdTextureQueue[std::max(0,nLastKF-i)];
-            imAndTexFrame.push_back(make_pair(mmFrameQueue[texFrame.mFrameID],texFrame));
-        }
-
-        return imAndTexFrame;
-    }
-
 
 }

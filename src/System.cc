@@ -91,7 +91,7 @@ namespace ORB_SLAM2
         mpMapDrawer = new MapDrawer(mpMap, strSettingsFile);
 
         //CARV: modeldrawer
-        mpModelDrawer = new ModelDrawer();
+        mpModelDrawer = new ModelDrawer(mpMap);
 
         //Initialize the Tracking thread
         //(it will live in the main thread of execution, the one that called this constructor)

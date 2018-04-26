@@ -54,6 +54,9 @@ namespace ORB_SLAM2
         }
 
         SetPose(F.mTcw);
+
+        //CARV: save image
+        mImage = F.mImage.clone();
     }
 
     void KeyFrame::ComputeBoW()
@@ -660,6 +663,58 @@ namespace ORB_SLAM2
         sort(vDepths.begin(),vDepths.end());
 
         return vDepths[(vDepths.size()-1)/q];
+    }
+
+
+    //CARV: stop erasing keyframe when used by modeldrawer
+    void KeyFrame::SetNotEraseDrawer()
+    {
+        unique_lock<mutex> lock(mMutexConnections);
+        mbNotEraseDrawer = true;
+    }
+
+    void KeyFrame::SetEraseDrawer()
+    {
+        {
+            unique_lock<mutex> lock(mMutexConnections);
+            if(mspLoopEdges.empty())
+            {
+                mbNotEraseDrawer = false;
+            }
+        }
+
+        if(mbToBeErased)
+        {
+            SetBadFlag();
+        }
+    }
+
+    vector<float> KeyFrame::GetTexCoordinate(float x, float y, float z, cv::Size s) {
+        const cv::Mat P = (cv::Mat_<float>(3, 1) << x, y, z);
+        const cv::Mat Rcw = GetPose().rowRange(0, 3).colRange(0, 3);
+        const cv::Mat tcw = GetPose().rowRange(0, 3).col(3);
+        // 3D in camera coordinates
+        const cv::Mat Pc = Rcw * P + tcw;
+        const float &PcX = Pc.at<float>(0);
+        const float &PcY = Pc.at<float>(1);
+        const float &PcZ = Pc.at<float>(2);
+
+        std::vector<float> uv;
+        if(PcZ > 0) {
+            // Project in image and check it is not outside
+            const float invz = 1.0f / PcZ;
+            const float u = fx * PcX * invz + cx;
+            const float v = fy * PcY * invz + cy;
+
+            float uTex = u / s.width;
+            float vTex = v / s.height;
+            if (uTex > 0 && uTex < 1 && vTex > 0 && vTex < 1) {
+                uv.push_back(uTex);
+                uv.push_back(vTex);
+            }
+        }
+        return uv;
+
     }
 
     cv::Mat KeyFrame::TransformPointWtoC(cv::Mat Pw){

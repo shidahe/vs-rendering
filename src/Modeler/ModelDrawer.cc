@@ -7,41 +7,59 @@
 
 namespace ORB_SLAM2
 {
-    ModelDrawer::ModelDrawer():mbModelUpdateRequested(false), mbModelUpdateDone(true)
+    ModelDrawer::ModelDrawer(Map* pMap):mpMap(pMap),mbModelUpdateRequested(false), mbModelUpdateDone(true)
     {
         target.setZero();
     }
 
     void ModelDrawer::DrawModel(bool bRGB)
     {
-        //TODO: save image into keyframe structure and use map keyframes to render
-        //TODO: find a way to reduce the number of rendering keyframes
+        //TODO: find a way to optimize rendering keyframes
 
         // select 10 KFs
         int numKFs = 10;
-        vector<pair<cv::Mat,TextureFrame>> imAndTexFrame = mpModeler->GetTextures(numKFs);
+        vector<KeyFrame*> vpKFs = mpMap->GetAllKeyFrames();
+
+        std::sort(vpKFs.begin(), vpKFs.end(), KeyFrame::lId);
+
+        vector<KeyFrame*> vpKFtex;
+
+        for(auto it = vpKFs.rbegin(); it != vpKFs.rend(); ++it) {
+            if ((int)vpKFtex.size() >= numKFs)
+                break;
+            KeyFrame *kf = *it;
+            kf->SetNotEraseDrawer();
+            if (kf->isBad()) {
+                kf->SetEraseDrawer();
+                continue;
+            }
+            vpKFtex.push_back(kf);
+        }
+
 
         UpdateModel();
 
-        if ((int)imAndTexFrame.size() >= numKFs) {
+        if ((int)vpKFtex.size() >= numKFs) {
 
             static unsigned int frameTex = 0;
 
             if (!frameTex)
                 glGenTextures(numKFs, &frameTex);
 
-            cv::Size imSize = imAndTexFrame[0].first.size();
+            cv::Size imSize = vpKFtex[0]->mImage.size();
 
             cv::Mat mat_array[numKFs];
-            int count = 0;
             for (int i = 0; i < numKFs; i++) {
-                if (imAndTexFrame[i].first.channels() == 3) {
-                    mat_array[count] = imAndTexFrame[i].first;
-                    count++;
+                if (vpKFtex[i]->mImage.channels() == 3) {
+                    mat_array[i] = vpKFtex[i]->mImage;
+                } else {
+                    //num of channels is not 3, something is wrong
+                    for (auto it = vpKFtex.begin(); it != vpKFtex.end(); it++)
+                        (*it)->SetEraseDrawer(); //release the keyframes
+                    return;
                 }
             }
-            if (count < numKFs)
-                return;
+
 
             cv::Mat texture;
             cv::vconcat(mat_array, numKFs, texture);
@@ -108,10 +126,9 @@ namespace ORB_SLAM2
 
                 for (int i = 0; i < numKFs; i++) {
 
-                    TextureFrame tex = imAndTexFrame[i].second;
-                    vector<float> uv0 = tex.GetTexCoordinate(point0(0), point0(1), point0(2), imSize);
-                    vector<float> uv1 = tex.GetTexCoordinate(point1(0), point1(1), point1(2), imSize);
-                    vector<float> uv2 = tex.GetTexCoordinate(point2(0), point2(1), point2(2), imSize);
+                    vector<float> uv0 = vpKFtex[i]->GetTexCoordinate(point0(0), point0(1), point0(2), imSize);
+                    vector<float> uv1 = vpKFtex[i]->GetTexCoordinate(point1(0), point1(1), point1(2), imSize);
+                    vector<float> uv2 = vpKFtex[i]->GetTexCoordinate(point2(0), point2(1), point2(2), imSize);
 
                     if (uv0.size() == 2 && uv1.size() == 2 && uv2.size() == 2) {
 
@@ -135,6 +152,9 @@ namespace ORB_SLAM2
             glDisable(GL_TEXTURE_2D);
 
         }
+
+        for (auto it = vpKFtex.begin(); it != vpKFtex.end(); it++)
+            (*it)->SetEraseDrawer(); //release the keyframes
 
     }
 
@@ -239,26 +259,44 @@ namespace ORB_SLAM2
     {
         // select the last frame
         int numKFs = 1;
-        vector<pair<cv::Mat,TextureFrame>> imAndTexFrame = mpModeler->GetTextures(numKFs);
 
-        if ((int)imAndTexFrame.size() >= numKFs) {
+        vector<KeyFrame*> vpKFs = mpMap->GetAllKeyFrames();
+
+        std::sort(vpKFs.begin(), vpKFs.end(), KeyFrame::lId);
+
+        vector<KeyFrame*> vpKFtex;
+
+        for(auto it = vpKFs.rbegin(); it != vpKFs.rend(); ++it) {
+            if ((int)vpKFtex.size() >= numKFs)
+                break;
+            KeyFrame *kf = *it;
+            kf->SetNotEraseDrawer();
+            if (kf->isBad()) {
+                kf->SetEraseDrawer();
+                continue;
+            }
+            vpKFtex.push_back(kf);
+        }
+
+
+        if ((int)vpKFtex.size() >= numKFs) {
             glColor3f(1.0,1.0,1.0);
 
-            if (imAndTexFrame[0].first.empty()){
+            if (vpKFtex[0]->mImage.empty()){
                 std::cerr << "ERROR: empty frame image" << endl;
                 return;
             }
-            cv::Size imSize = imAndTexFrame[0].first.size();
+            cv::Size imSize = vpKFtex[0]->mImage.size();
 
             if(bRGB) {
                 pangolin::GlTexture imageTexture(imSize.width, imSize.height, GL_RGB, false, 0, GL_BGR,
                                                  GL_UNSIGNED_BYTE);
-                imageTexture.Upload(imAndTexFrame[0].first.data, GL_BGR, GL_UNSIGNED_BYTE);
+                imageTexture.Upload(vpKFtex[0]->mImage.data, GL_BGR, GL_UNSIGNED_BYTE);
                 imageTexture.RenderToViewportFlipY();
             } else {
                 pangolin::GlTexture imageTexture(imSize.width, imSize.height, GL_RGB, false, 0, GL_RGB,
                                                  GL_UNSIGNED_BYTE);
-                imageTexture.Upload(imAndTexFrame[0].first.data, GL_RGB, GL_UNSIGNED_BYTE);
+                imageTexture.Upload(vpKFtex[0]->mImage.data, GL_RGB, GL_UNSIGNED_BYTE);
                 imageTexture.RenderToViewportFlipY();
             }
 

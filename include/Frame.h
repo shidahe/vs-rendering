@@ -98,6 +98,9 @@ public:
     // Backprojects a keypoint (if stereo/depth info available) into 3D world coordinates.
     cv::Mat UnprojectStereo(const int &i);
 
+    //CARV: save rgb image
+    void SaveImage(const cv::Mat &im);
+
 public:
     // Vocabulary used for relocalization.
     ORBVocabulary* mpORBvocabulary;
@@ -187,6 +190,8 @@ public:
 
     static bool mbInitialComputations;
 
+    //CARV: saved rgb image
+    cv::Mat mImage;
 
 private:
 

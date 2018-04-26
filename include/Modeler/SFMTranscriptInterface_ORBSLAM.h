@@ -7,7 +7,6 @@
 #include <map>
 #include "MapPoint.h"
 #include "KeyFrame.h"
-#include "Modeler/TextureFrame.h"
 
 typedef ORB_SLAM2::MapPoint MapPoint;
 typedef ORB_SLAM2::KeyFrame KeyFrame;
@@ -30,8 +29,6 @@ public:
     void addVisibilityRayDeletionEntry(KeyFrame *k, MapPoint *p);
     void addFirstKeyFrameInsertionEntry(KeyFrame *k);
     void addKeyFrameInsertionEntry(KeyFrame *k);
-
-    void addKeyFrameInsertionWithLinesEntry(KeyFrame *k, KeyFrame *kCopy, std::vector<cv::Point3f>& vP);
 
     void addBundleAdjustmentEntry(std::set<KeyFrame *> & sAdjustSet, std::set<MapPoint *> & sMapPoints);
     void writeToFile(const std::string & strFileName) const;

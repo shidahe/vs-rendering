@@ -103,7 +103,6 @@ add_library(${PROJECT_NAME} SHARED
         src/Modeler/SFMTranscriptInterface_ORBSLAM.cpp
         src/Modeler/Modeler.cc
         src/Modeler/ModelDrawer.cc
-        src/Modeler/TextureFrame.cc
         )
 
 # add lapack blas link

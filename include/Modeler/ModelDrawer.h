@@ -15,7 +15,7 @@
 #include <vector>
 #include "Modeler/Matrix.h"
 #include "Modeler/Modeler.h"
-#include "Modeler/TextureFrame.h"
+#include "Map.h"
 
 namespace ORB_SLAM2
 {
@@ -26,7 +26,7 @@ namespace ORB_SLAM2
     class ModelDrawer
     {
     public:
-        ModelDrawer();
+        ModelDrawer(Map* pMap);
 
         void DrawModel(bool bRGB);
         void DrawModelPoints();
@@ -51,6 +51,8 @@ namespace ORB_SLAM2
         void SetModeler(Modeler* pModeler);
 
     private:
+
+        Map* mpMap;
 
         Modeler* mpModeler;
 

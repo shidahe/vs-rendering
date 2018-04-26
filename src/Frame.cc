@@ -32,6 +32,21 @@ float Frame::cx, Frame::cy, Frame::fx, Frame::fy, Frame::invfx, Frame::invfy;
 float Frame::mnMinX, Frame::mnMinY, Frame::mnMaxX, Frame::mnMaxY;
 float Frame::mfGridElementWidthInv, Frame::mfGridElementHeightInv;
 
+
+//CARV:: save rgb image
+void Frame::SaveImage(const cv::Mat &im)
+{
+    cv::Mat imu;
+    cv::undistort(im,imu,mK,mDistCoef);
+    // make a copy of image and save as RGB
+    cv::Mat imc;
+    imu.copyTo(imc);
+    if(imc.channels() < 3)
+        cvtColor(imc,imc,CV_GRAY2RGB);
+    mImage = imc;
+}
+
+
 Frame::Frame()
 {}
 

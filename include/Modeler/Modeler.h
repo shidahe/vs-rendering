@@ -7,7 +7,6 @@
 #include "Modeler/SFMTranscriptInterface_ORBSLAM.h"
 #include "Modeler/SFMTranscriptInterface_Delaunay.h"
 #include "Modeler/ModelDrawer.h"
-#include "Modeler/TextureFrame.h"
 
 namespace ORB_SLAM2 {
 
@@ -45,14 +44,6 @@ namespace ORB_SLAM2 {
         void RequestFinish();
         bool isFinished();
 
-        void AddTexture(KeyFrame* pKF);
-        void AddTexture(Frame* pF);
-        void AddFrameImage(const long unsigned int &frameID, const cv::Mat &im);
-
-        // get last n keyframes for texturing
-        std::vector<pair<cv::Mat,TextureFrame>> GetTextures(int n);
-
-
     public:
         void ResetIfRequested();
         bool mbResetRequested;
@@ -82,16 +73,6 @@ namespace ORB_SLAM2 {
         dlovi::FreespaceDelaunayAlgorithm mObjAlgorithm;
         SFMTranscriptInterface_Delaunay mAlgInterface; // An encapsulation of the interface between the transcript and the surface inferring algorithm.
         bool mbFirstKeyFrame;
-
-        //queue for the keyframes used to texture the model, keyframe mnFrameId
-        std::deque<TextureFrame> mdTextureQueue;
-        size_t mnMaxTextureQueueSize;
-        std::mutex mMutexTexture;
-
-        //queue for the frames recieved, pair<mnID,image>
-        std::map<long unsigned int, cv::Mat> mmFrameQueue;
-        size_t mnMaxFrameQueueSize;
-        std::mutex mMutexFrame;
 
     };
 }

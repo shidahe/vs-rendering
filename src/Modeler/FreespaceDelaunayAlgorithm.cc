@@ -722,7 +722,7 @@ namespace dlovi {
         {
             // TODO: Remove timing output for graphcuts.
             //cerr << "Running Graph Cut Isosurface Extraction..." << endl;
-            double t = timestamp();
+            //double t = timestamp();
             tetsToTris_maxFlowSimple(dt, points, tris, nVoteThresh);
             //cerr << "Time Taken (Isosurface): " << (timestamp() - t) << " s" << endl;
         }
